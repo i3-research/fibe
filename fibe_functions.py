@@ -54,15 +54,15 @@ def fibe(feature_df, score_df, columns_names=None, task_type=None, model_name=No
             model = SVR(kernel = 'linear', C=1.0, epsilon=0.2)  # Default
         elif model_name == 'gaussianSVR':
             model = SVR(kernel = 'rbf', C=1.0, gamma='scale')
-        elif model_name == 'RandomForest':
+        elif model_name == 'RegressionForest':
             model = RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
             model = AdaBoostRegressor(base_estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVR':
             model = AdaBoostRegressor(base_estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
-        elif model_name == 'concensus':
+        elif model_name == 'consensus':
             model = { 
-            "Random Forest" : RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5),
+            "Regression Forest" : RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5),
             "Gaussian SVR" : SVR(kernel = 'rbf', C=1.0, gamma='scale'), 
             "Linear SVR" : SVR(kernel = 'linear', C=1.0, epsilon=0.2)
             } 
@@ -79,7 +79,7 @@ def fibe(feature_df, score_df, columns_names=None, task_type=None, model_name=No
             model = AdaBoostClassifier(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVR':
             model = AdaBoostClassifier(estimator=SVC(), algorithm = 'SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
-        elif model_name == 'concensus':
+        elif model_name == 'consensus':
             model = { 
             "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
             "Gaussian SVR" : SVC(kernel = 'rbf', C=1.0, gamma='scale'), 
@@ -169,7 +169,7 @@ def train(maxIter, nFold, feature_df, score_df, task_type, model_name, model, me
                     df_val_score = train_val_score_df.iloc[inner_fold[1]]
                     df_val_feature = validation[temp_features]
                     
-                    if model_name == 'concensus':
+                    if model_name == 'consensus':
                         for one_model in model:
                             model_ = model[one_model]
                             
@@ -229,7 +229,7 @@ def train(maxIter, nFold, feature_df, score_df, task_type, model_name, model, me
                     df_val_score = train_val_score_df.iloc[inner_fold[1]]
                     df_val_feature = validation[temp_features]
                     
-                    if model_name == 'concensus':
+                    if model_name == 'consensus':
                         for one_model in model:
                             model_ = model[one_model]
                             
@@ -287,7 +287,7 @@ def inference(final_features, nFold, feature_df, score_df, model_name, model, me
         df_val_s = score_df.iloc[infer_fold[1]]
         df_val_f = test_df[final_features]
         
-        if model_name == 'concensus':
+        if model_name == 'consensus':
             accumulated_performance = []
             for one_model in model:
                 model_ = model[one_model]
