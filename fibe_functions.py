@@ -78,9 +78,9 @@ def fibe(feature_df, score_df, columns_names=None, task_type=None, model_name=No
         elif model_name == 'RegressionForest':
             model = RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
-            model = AdaBoostRegressor(base_estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            model = AdaBoostRegressor(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVR':
-            model = AdaBoostRegressor(base_estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
+            model = AdaBoostRegressor(estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
             model = { 
             "Regression Forest" : RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5),
@@ -89,7 +89,7 @@ def fibe(feature_df, score_df, columns_names=None, task_type=None, model_name=No
             } 
         else:
             raise ValueError("Unknown model name")
-    else:
+    elif task_type == 'classification':
         if model_name == None or model_name == 'linearSVC':
             model = SVC(kernel = 'linear', C=1.0)  # Default
         elif model_name == 'gaussianSVR':
@@ -108,6 +108,8 @@ def fibe(feature_df, score_df, columns_names=None, task_type=None, model_name=No
             }
         else:
             raise ValueError("Unknown model name")
+    else:
+        raise ValueError("Unknown task type. Can be 'regression' or 'classification'")
         
     if task_type == 'regression' and metric == None:
         metric = 'MAE' # Default 
@@ -121,7 +123,9 @@ def fibe(feature_df, score_df, columns_names=None, task_type=None, model_name=No
         nFold = 5   # Default 
         
     if maxIter == None:
-        maxIter = 3  # Default 
+        maxIter = 3  # Default
+    elif maxIter < 1:
+        raise ValueError("maxIter must be a positive integer bigger than zero.")
         
     if voting_strictness == 'strict':
         vote = 3
