@@ -28,8 +28,9 @@ from collections import Counter
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.svm import SVR, SVC
 from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
+from sklearn.utils import resample
 
-def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, verbose=True):
+def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, verbose=True):
     
     '''
     feature_df: is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
@@ -39,6 +40,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     columns_names: contain the names of the features. The algorithm returns the names of the selected features from this list. 
             If not available, then the algorithm returns the column indexes of selected features. 
     task_type: either 'regression' or 'classification.' Default is 'regression.'
+    balance: In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
     model_name: For 'regression' task, to choose from 'linerSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', 
             and 'consensus' (consensus using 'linerSVR', 'gaussianSVR', and 'RegressionForest'). Default is 'linerSVR'. For 'classification' task, 
             to choose from 'linerSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linerSVC', 
@@ -54,6 +56,9 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
 
     The outputs are:
     selectedFeatures: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features.
+    actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has repetition of values 3 time, to correspond to predictions by three models. 
+    predictedScore: is the list containing predicted scores. If 'model_name' is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation 
+            is generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision making.
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds.
     '''
     
@@ -115,6 +120,12 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     # Assigning a task type if None
     if task_type == None:
         task_type = 'regression'
+    
+    # Checking preconditions for balancing imbalanced data   
+    if balance == True and task_type == 'regression':
+        raise ValueError("Data cannot be made balanced for regression task.")
+    elif balance == True and score_df.nunique()[0] > 2:
+        raise ValueError("Balancing data only works for binary classification problem. You have more than 2 classes.")
     
     # Assigning a model if None, or, assigning models based on task type
     if task_type == 'regression':
@@ -189,18 +200,19 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
         raise ValueError("Unknown voting strictness. Must be either 'strict' or 'loose.'")
         
     # training a model
-    selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, model_name, model, metric, verbose)
+    selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, verbose)
     final_features = [element for element, count in selectedFeatures.items() if count >= vote]
+    
+    # inference
+    actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
+    
     if len(specialist_features) != 0:
         final_features = list(specialist_features.columns) + final_features
     
-    # inference
-    validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, model_name, model, metric)
-    
-    return final_features, validationPerformance
+    return final_features, actual_score, predicted_score, validationPerformance
         
         
-def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, model_name, model, metric, verbose=False):
+def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, verbose=False):
     max_iter = maxIter
     kf5 = KFold(n_splits = nFold, shuffle = False)
     
@@ -214,9 +226,6 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
             train_specialist = specialist_features.iloc[outer_fold[0]]
         
         oF += 1
-        
-        if verbose:
-            print(f'Outer Fold: {oF}')
             
         selected_features = []
         
@@ -226,9 +235,6 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
             highest_accuracy = float('-inf')
         
         for i in range(max_iter):
-            if verbose:
-                print(f'==== Iteration: {i+1}')
-            
             for feature in feature_df.columns:
                 if feature in selected_features:
                     continue
@@ -253,28 +259,32 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                     df_val_score = train_val_score_df.iloc[inner_fold[1]]
                     df_val_feature = validation[temp_features]
                     
+                    if balance == True:
+                        if len(specialist_features) != 0:
+                            df_feature, df_score = balanceData(pd.concat([train_spec, df_feature], axis=1), df_score)
+                            df_val_feature, df_val_score = balanceData(pd.concat([valid_spec, df_val_feature], axis=1), df_val_score)
+                        else:
+                            df_feature, df_score = balanceData(df_feature, df_score)
+                            df_val_feature, df_val_score = balanceData(df_val_feature, df_val_score)
+                    else:
+                        if len(specialist_features) != 0:
+                            df_feature = pd.concat([train_spec, df_feature], axis=1)
+                            df_val_feature = pd.concat([valid_spec, df_val_feature], axis=1)
+                    
                     if model_name == 'consensus':
                         for one_model in model:
                             model_ = model[one_model]
                             
                             # Train a Regressor with the selected features and predict
-                            if len(specialist_features) != 0:
-                                model_.fit(pd.concat([train_spec, df_feature], axis=1), df_score.values.ravel())
-                                y_pred = model_.predict(pd.concat([valid_spec, df_val_feature], axis=1))
-                            else:
-                                model_.fit(df_feature, df_score.values.ravel())
-                                y_pred = model_.predict(df_val_feature)
+                            model_.fit(df_feature, df_score.values.ravel())
+                            y_pred = model_.predict(df_val_feature)
                                 
                             # Calculate the mean absolute error for the validation set
                             inner_error.append(loss_estimation(metric, df_val_score, y_pred))
                     else:
                         # Train a Regressor with the selected features and predict
-                        if len(specialist_features) != 0:
-                            model.fit(pd.concat([train_spec, df_feature], axis=1), df_score.values.ravel())
-                            y_pred = model.predict(pd.concat([valid_spec, df_val_feature], axis=1))
-                        else:
-                            model.fit(df_feature, df_score.values.ravel())
-                            y_pred = model.predict(df_val_feature)
+                        model.fit(df_feature, df_score.values.ravel())
+                        y_pred = model.predict(df_val_feature)
                             
                         # Calculate the mean absolute error for the validation set
                         inner_error.append(loss_estimation(metric, df_val_score, y_pred))
@@ -286,9 +296,9 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"====== Features: {all_feat}, {metric}: {lowest_error:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {lowest_error:.4f}, Features: {all_feat}")
                             else:
-                                print(f"====== Features: {selected_features}, {metric}: {lowest_error:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {lowest_error:.4f}, Features: {selected_features}")
                 else:
                     if np.mean(inner_error) > highest_accuracy:
                         highest_accuracy = np.mean(inner_error)
@@ -296,13 +306,11 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"====== Features: {all_feat}, {metric}: {highest_accuracy:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {highest_accuracy:.4f}, Features: {all_feat}")
                             else:
-                                print(f"====== Features: {selected_features}, {metric}: {highest_accuracy:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {highest_accuracy:.4f}, Features: {selected_features}")
             
             # Backward Elimination
-            if verbose:
-                print(f'===== FI finished, BE begins ======')
             selected_features_ = copy.deepcopy(selected_features)
             
             for feature in selected_features_:
@@ -329,28 +337,32 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                     df_val_score = train_val_score_df.iloc[inner_fold[1]]
                     df_val_feature = validation[temp_features]
                     
+                    if balance == True:
+                        if len(specialist_features) != 0:
+                            df_feature, df_score = balanceData(pd.concat([train_spec, df_feature], axis=1), df_score)
+                            df_val_feature, df_val_score = balanceData(pd.concat([valid_spec, df_val_feature], axis=1), df_val_score)
+                        else:
+                            df_feature, df_score = balanceData(df_feature, df_score)
+                            df_val_feature, df_val_score = balanceData(df_val_feature, df_val_score)
+                    else:
+                        if len(specialist_features) != 0:
+                            df_feature = pd.concat([train_spec, df_feature], axis=1)
+                            df_val_feature = pd.concat([valid_spec, df_val_feature], axis=1)
+                    
                     if model_name == 'consensus':
                         for one_model in model:
                             model_ = model[one_model]
                             
                             # Train a Regressor with the selected features and predict
-                            if len(specialist_features) != 0:
-                                model_.fit(pd.concat([train_spec, df_feature], axis=1), df_score.values.ravel())
-                                y_pred = model_.predict(pd.concat([valid_spec, df_val_feature], axis=1))
-                            else:
-                                model_.fit(df_feature, df_score.values.ravel())
-                                y_pred = model_.predict(df_val_feature)
+                            model_.fit(df_feature, df_score.values.ravel())
+                            y_pred = model_.predict(df_val_feature)
                                                     
                             # Calculate the mean absolute error for the validation set
                             inner_error.append(loss_estimation(metric, df_val_score, y_pred))
                     else:
                         # Train a Regressor with the selected features and predict
-                        if len(specialist_features) != 0:
-                            model.fit(pd.concat([train_spec, df_feature], axis=1), df_score.values.ravel())
-                            y_pred = model.predict(pd.concat([valid_spec, df_val_feature], axis=1))
-                        else:
-                            model.fit(df_feature, df_score.values.ravel())
-                            y_pred = model.predict(df_val_feature)
+                        model.fit(df_feature, df_score.values.ravel())
+                        y_pred = model.predict(df_val_feature)
                             
                         # Calculate the mean absolute error for the validation set
                         inner_error.append(loss_estimation(metric, df_val_score, y_pred))
@@ -362,9 +374,9 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"====== Features: {all_feat}, {metric}: {lowest_error:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {lowest_error:.4f}, Features: {all_feat}")
                             else:
-                                print(f"====== Features: {selected_features}, {metric}: {lowest_error:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {lowest_error:.4f}, Features: {selected_features}")
                 else:
                     if np.mean(inner_error) > highest_accuracy:
                         highest_accuracy = np.mean(inner_error)
@@ -372,9 +384,9 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"====== Features: {all_feat}, {metric}: {highest_accuracy:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {highest_accuracy:.4f}, Features: {all_feat}")
                             else:
-                                print(f"====== Features: {selected_features}, {metric}: {highest_accuracy:.4f}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {highest_accuracy:.4f}, Features: {selected_features}")
         
         # saving features selected across all outer folds
         frequency_of_features_selected_all_fold = frequency_of_features_selected_all_fold + selected_features
@@ -383,9 +395,11 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
     return feature_counts
 
 
-def inference(final_features, nFold, feature_df, score_df, specialist_features, model_name, model, metric):
+def inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric):
     kf5 = KFold(n_splits = nFold, shuffle = False)
     valPerformanceByFold = []
+    actual_score = []
+    predicted_score = []
     
     for infer_fold in kf5.split(feature_df):
         train_val_df = feature_df.iloc[infer_fold[0]]
@@ -403,36 +417,49 @@ def inference(final_features, nFold, feature_df, score_df, specialist_features, 
         df_val_s = score_df.iloc[infer_fold[1]]
         df_val_f = test_df[final_features]
         
+        if balance == True:
+            if len(specialist_features) != 0:
+                df_f, df_s = balanceData(pd.concat([train_specialist, df_f], axis=1), df_s)
+                df_val_f, df_val_s = balanceData(pd.concat([test_specialist, df_val_f], axis=1), df_val_s)
+            else:
+                df_f, df_s = balanceData(df_f, df_s)
+                df_val_f, df_val_s = balanceData(df_val_f, df_val_s)
+        else:
+            if len(specialist_features) != 0:
+                df_f = pd.concat([train_specialist, df_f], axis=1)
+                df_val_f = pd.concat([test_specialist, df_val_f], axis=1)
+        
         if model_name == 'consensus':
             accumulated_performance = []
             for one_model in model:
                 model_ = model[one_model]
                 
                 # Fit data to a model with the selected features and predict
-                if len(specialist_features) != 0:
-                    model_.fit(pd.concat([train_specialist, df_f], axis=1), df_s.values.ravel())
-                    y_pred = model_.predict(pd.concat([test_specialist, df_val_f], axis=1))
-                else:
-                    model_.fit(df_f, df_s.values.ravel())
-                    y_pred = model_.predict(df_val_f, axis=1)
+                model_.fit(df_f, df_s.values.ravel())
+                y_pred = model_.predict(df_val_f)
                     
                 # Calculate the performance for the validation set
                 accumulated_performance.append(loss_estimation(metric, df_val_s, y_pred))
+                
+                # save the actual and prediction scores
+                actual_score.append(df_val_s.values.ravel().tolist())
+                predicted_score.append(y_pred.tolist())
             
             valPerformanceByFold.append(np.mean(accumulated_performance))
         else:
             # Fit data to a model with the selected features and predict
-            if len(specialist_features) != 0:
-                model.fit(pd.concat([train_specialist, df_f], axis=1), df_s.values.ravel())
-                y_pred = model.predict(pd.concat([test_specialist, df_val_f], axis=1))
-            else:
-                model.fit(df_f, df_s.values.ravel())
-                y_pred = model.predict(df_val_f)
+            model.fit(df_f, df_s.values.ravel())
+            y_pred = model.predict(df_val_f)
                 
             # Calculate the mean absolute error for the validation set
             valPerformanceByFold.append(loss_estimation(metric, df_val_s, y_pred))
+            actual_score.append(df_val_s.values.ravel().tolist())
+            predicted_score.append(y_pred.tolist())
+        
+        actual = [item for sublist in actual_score for item in sublist]
+        predicted = [round(item, 2) for sublist in predicted_score for item in sublist]
             
-    return valPerformanceByFold
+    return actual, predicted, valPerformanceByFold
         
 def loss_estimation(metric, true_values, predicted_values):
     true_values = np.array(true_values)
@@ -449,17 +476,47 @@ def loss_estimation(metric, true_values, predicted_values):
         accuracy = accuracy_score(true_values, predicted_values)
         return accuracy
     elif metric == 'binaryROC':
-        tn, fp, fn, tp  = confusion_matrix(true_values, predicted_values)
-        sensitivity = round(tp / (tp + fn),2)
-        specificity = round(tn / (tn + fp),2)
+        cm  = confusion_matrix(true_values, predicted_values)
+        tn, fp, fn, tp = cm.ravel()
+        epsilon = 1e-7
+        sensitivity = round(tp / (tp + fn + epsilon), 2)
+        specificity = round(tn / (tn + fp + epsilon), 2)
         binaryROC = ((1-sensitivity) ** 2) + ((1-specificity) ** 2)
         return binaryROC
     elif metric == 'F1-score':
-        tn, fp, fn, tp  = confusion_matrix(true_values, predicted_values)
-        precision = tp / (tp + fp)
-        recall = tp / (tp + fn)
-        f1_score = 2 * (precision * recall) / (precision + recall)
+        cm  = confusion_matrix(true_values, predicted_values)
+        tn, fp, fn, tp = cm.ravel()
+        epsilon = 1e-7
+        precision = tp / (tp + fp + epsilon)
+        recall = tp / (tp + fn + epsilon)
+        f1_score = 2 * (precision * recall) / (precision + recall + epsilon)
         f1_score = round(f1_score, 2)
         return f1_score
     else:
         raise ValueError("Unknown metric")
+    
+def balanceData(data, target):
+    # Concatenate them for easier manipulation
+    df = pd.concat([target, data], axis=1)
+    df.columns = ['groundTruth'] + list(data.columns)
+
+    # Determine which class is the majority and which is the minority
+    class_counts = df['groundTruth'].value_counts()
+    majority_class = class_counts.idxmax()
+    minority_class = class_counts.idxmin()
+
+    # Separate majority and minority classes
+    df_majority = df[df['groundTruth'] == majority_class]
+    df_minority = df[df['groundTruth'] == minority_class]
+
+    # Upsample minority class
+    df_minority_upsampled = resample(df_minority, replace=True, n_samples=df_majority.shape[0], random_state=123) 
+
+    # Combine majority class with upsampled minority class
+    df_upsampled = pd.concat([df_majority, df_minority_upsampled])
+
+    # Separate features and target from the balanced dataframe
+    feature_balanced = df_upsampled.drop('groundTruth', axis=1)
+    class_balanced = df_upsampled['groundTruth']
+    
+    return feature_balanced, class_balanced
