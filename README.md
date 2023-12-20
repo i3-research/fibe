@@ -7,7 +7,7 @@ https://github.com/i3-research/fibe
 ## How to Run the Algorithm
 To run this algorithm, the following function is needed to call with appropriate parameter selection:
 
-``selectedFeatures, actualScore, predictedScore, validationPerformance = fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False,model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, verbose=True)``
+``selectedFeatures, actualScore, predictedScore, validationPerformance = fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, verbose=True)``
 
 Here, 
 - ``feature_df`` is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
