@@ -77,7 +77,7 @@ print(final_features, validationPerformance)
 # With predefined fixed features 
 #-------------------------------
 fixed = ['pixel_2_1', 'pixel_2_2']
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, fixed_features=fixed, task_type='classification', balance=True, model_name='consensus', metric='F1-score', voting_strictness='strict', maxIter=1, verbose=True)
+final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, fixed_features=fixed, task_type='classification', balance=True, metric='F1-score', voting_strictness='strict', maxIter=1, verbose=True)
 print(final_features, validationPerformance)
 
 

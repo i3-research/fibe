@@ -34,7 +34,11 @@ The outputs are:
 Figure: Schematic diagram of our FIBE algorithm.
 
 ## Example Code
-An example python file ``main.py`` is given. It includes example code to run one classification and one regression problems. Further, it includes examples on how to run the algorithm with predefined fixed features.
+An example python file ``main.py`` is given. It includes example code to run one classification and one regression problems. Further, it includes examples on how to run the algorithm with predefined fixed features as well as data balancing option.
 
 ## Required Packages
 Please refer to ``requirements.txt`` file.
+
+## Suggestions and Comments
+Prof. Yangming Ou, PhD (Yangming.Ou@childrens.harvard.edu)
+Mohammad Arafat Hussain, PhD (Mohammad.Hussain@childrens.harvard.edu)
