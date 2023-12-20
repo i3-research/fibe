@@ -46,7 +46,8 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     metric: For 'regression' task, to choose from 'MAE' and 'MAPE'. Default is 'MAE.' For 'classification' task, to choose from 'Accuracy', 
             'F1-score,' and 'binaryROC'. Default is 'Accuracy'.
     voting_strictness: either 'strict' that chooses those features that is selected at least 3 times in 5-fold cross-validation, or 
-            'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. Default is ``'strict'``.
+            'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. Default is 'strict'.
+            For any random number of folds, N, 'strict' threshold should be 0.6 X N and 'loose' threshold should be 0.4 X N.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iteration that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. Default is '3'.
     verbose: generates text for intermediate loss and selected feature list during iteration. Default is 'True'.

@@ -17,7 +17,7 @@ Here,
 - ``task_type`` either 'regression' or 'classification.' Default is 'regression.'
 - ``model_name`` For 'regression' task, to choose from 'linerSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', and 'consensus' (consensus using 'linerSVR', 'gaussianSVR', and 'RegressionForest'). Default is ``'linerSVR'``. For 'classification' task, to choose from 'linerSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linerSVC', 'gaussianSVC', and 'RandomForest'). Default is ``'linerSVC'``.
 - ``metric`` For ``regression`` task, to choose from 'MAE' and 'MAPE'. Default is 'MAE.' For 'classification' task, to choose from 'Accuracy', 'F1-score', and 'binaryROC'. Default is ``'Accuracy'``.
-- ``voting_strictness`` either 'strict' that chooses those features that is selected at least 3 times in 5-fold cross-validation, or 'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. Default is ``'strict'``.
+- ``voting_strictness`` either 'strict' that chooses those features that is selected at least 3 times in 5-fold cross-validation, or 'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. Default is ``'strict'``. For any random number of folds, ``N``, 'strict' threshold should be ``0.6 X N`` and 'loose' threshold should be ``0.4 X N``.
 - ``nFold`` Number of folds in cross-validation. Preferred and default is ``5``.
 - ``maxIter`` is the maximum number of iteration that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. Default is ``3``.
 - ``verbose`` generates text for intermediate loss and selected feature list during iteration. Default is ``True``.
@@ -28,6 +28,6 @@ The outputs are:
 
 An example caller python file ``main.py`` is given.
 
-## Detailed Explanation of the Algorithm
-![Alt text](figure/figure.png?raw=true "Title")
+## Algorithm Overview
+![Alt text](figure/figure_v2.png?raw=true "Title")
 Figure: Schematic diagram of our FIBE algorithm.
