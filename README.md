@@ -40,5 +40,5 @@ An example python file ``main.py`` is given. It includes example code to run one
 Please refer to ``requirements.txt`` file.
 
 ## Suggestions and Comments
-Prof. Yangming Ou, PhD (Yangming.Ou@childrens.harvard.edu)
-Mohammad Arafat Hussain, PhD (Mohammad.Hussain@childrens.harvard.edu)
+- Prof. Yangming Ou, PhD (Yangming.Ou@childrens.harvard.edu)
+- Mohammad Arafat Hussain, PhD (Mohammad.Hussain@childrens.harvard.edu)
