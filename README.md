@@ -26,8 +26,12 @@ The outputs are:
 - ``selectedFeatures`` is the list of features if ``columns_names`` was not ``None``. Otherwise column indexes of the selected features.
 - ``validationPerformance`` is a list containing validation performance in terms of chosen ``metric`` for ``nFold`` folds.
 
-An example caller python file ``main.py`` is given.
-
 ## Algorithm Overview
 ![Alt text](figure/figure_v2.png?raw=true "Title")
 Figure: Schematic diagram of our FIBE algorithm.
+
+## Example Code
+An example python file ``main.py`` is given. It includes example code to run one classification and one regression problems. Further, it includes examples on how to run the algorithm with predefined fixed features.
+
+## Required Packages
+Please refer to ``requirements.txt`` file.

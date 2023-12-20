@@ -1,8 +1,66 @@
+# Import necessary libraries
 import pandas as pd
+from sklearn import datasets
 from fibe_functions import fibe
-import numpy as np
 
 
+#======================================
+#      Regression Example
+#======================================
+
+# Load Boston dataset
+boston = datasets.load_boston()
+
+# Without any predefined fixed features
+#-------------------------------------- 
+data = pd.DataFrame(boston.data, columns=boston.feature_names)
+target = pd.Series(boston.target)
+
+final_features, validationPerformance = fibe(data, target, voting_strictness='strict', verbose=True)
+print(final_features, validationPerformance)
+
+# With predefined fixed features 
+#-------------------------------
+data = pd.DataFrame(boston.data, columns=boston.feature_names)
+fixed=['CRIM', 'ZN']
+target = pd.Series(boston.target)
+
+final_features, validationPerformance = fibe(data, target, fixed_features=fixed, voting_strictness='strict', verbose=True)
+print(final_features, validationPerformance)
+
+
+#======================================
+#      Classification Example
+#======================================
+
+# Load UCI ML Breast Cancer Wisconsin (Diagnostic) dataset dataset
+cancer = datasets.load_breast_cancer()
+
+# Without any predefined fixed features
+#-------------------------------------- 
+data = pd.DataFrame(cancer.data, columns=cancer.feature_names)
+target = pd.Series(cancer.target)
+
+final_features, validationPerformance = fibe(data, target, task_type='classification', voting_strictness='strict', verbose=True)
+print(final_features, validationPerformance)
+
+# With predefined fixed features 
+#-------------------------------
+data = pd.DataFrame(cancer.data, columns=cancer.feature_names)
+fixed=['mean area', 'radius error']
+target = pd.Series(cancer.target)
+
+final_features, validationPerformance = fibe(data, target, fixed_features=fixed, task_type='classification', voting_strictness='strict', verbose=True)
+print(final_features, validationPerformance)
+
+
+
+
+
+
+
+# ----------- Ignore Below -------------
+'''
 df = pd.read_csv('/home/ch225256/iq_prediction/IQ_prediction/chd_fibe/chd_all_features_scores_standardized.csv') # Load your own features/targets
 
 
@@ -17,28 +75,4 @@ score_df = df[["FullScaleIQ"]]
 
 final_features, validationPerformance = fibe(feature_df, score_df, model_name='AdaBoostSVR', voting_strictness='strict', verbose=False)
 print(final_features, validationPerformance)
-
-#final_features = ['deltaAGE=median-actual', 'chr_var', 'DAD_ED_LEV_STD', 'mri_all_PC4', 'mri_all_PC10', 'rsBOLD_all_aparc2_gordon_network_corr_PC37']
-#print(list(fixed.columns) + final_features)
-
-
-
-
-
-
-
-
-
-
-
-#column_names_list = list(feature_df.columns)
-#feature_df = feature_df.drop('ageatMRI', axis=1)
-# Convert DataFrame to NumPy array
-#numpy_array = feature_df.to_numpy()
-#feature_df = feature_df.values.tolist()
-#if type(numpy_array) is np.ndarray:
-#  df = pd.DataFrame(data=numpy_array, columns=column_names_list)
-#  print(df)
-
-#print(feature_df)
-#print(score_df)
+'''
