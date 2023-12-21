@@ -16,7 +16,7 @@ boston = datasets.load_boston()
 data = pd.DataFrame(boston.data, columns=boston.feature_names)
 target = pd.Series(boston.target)
 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, voting_strictness='strict', verbose=True)
+final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, verbose=True)
 print(final_features, validationPerformance)
 
 # With predefined fixed features 
@@ -25,7 +25,7 @@ data = pd.DataFrame(boston.data, columns=boston.feature_names)
 fixed = ['CRIM', 'ZN']
 target = pd.Series(boston.target)
 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, fixed_features=fixed, voting_strictness='strict', verbose=True)
+final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, fixed_features=fixed, voting_strictness='both', verbose=True)
 print(final_features, validationPerformance)
 
 
@@ -41,8 +41,8 @@ cancer = datasets.load_breast_cancer()
 data = pd.DataFrame(cancer.data, columns=cancer.feature_names)
 target = pd.Series(cancer.target)
 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, task_type='classification', voting_strictness='strict', verbose=True)
-print(final_features, validationPerformance)
+final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, task_type='classification', verbose=True)
+print(final_features, actual_score, predicted_score, validationPerformance)
 
 # With predefined fixed features 
 #-------------------------------

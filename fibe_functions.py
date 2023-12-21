@@ -55,11 +55,15 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     verbose: generates text for intermediate loss and selected feature list during iteration. Default is 'True'.
 
     The outputs are:
-    selectedFeatures: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features.
-    actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has repetition of values 3 time, to correspond to predictions by three models. 
+    selectedFeatures: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features. For 'voting_strictness' of 'both', 
+            'selectedFeatures' contains two sets of output as [[selected features for 'strict'], [selected feature for 'loose']].
+    actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has repetition of values 3 time, to correspond to 
+            predictions by three models. For 'voting_strictness' of 'both', 'actualScore' contains two sets of output as [[actual scores for 'strict'], [actual scores for 'loose']].
     predictedScore: is the list containing predicted scores. If 'model_name' is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation 
-            is generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision making.
-    validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds.
+            is generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision making. For 'voting_strictness' of 'both', 'predictedScore' contains two sets of 
+            output as [[predicted scores for 'strict'], [predicted score for 'loose']].
+    validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
+            two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']].
     '''
     
     
@@ -193,21 +197,53 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
         raise ValueError("maxIter must be a positive integer and greater than zero.")
         
     if voting_strictness == 'strict':
-        vote = 3
+        vote = round(0.6 * nFold)
     elif voting_strictness == 'loose':
-        vote = 2
+        vote = round(0.4 * nFold)
+    elif voting_strictness == 'both':
+        vote = 0
     else:
         raise ValueError("Unknown voting strictness. Must be either 'strict' or 'loose.'")
         
     # training a model
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, verbose)
-    final_features = [element for element, count in selectedFeatures.items() if count >= vote]
     
     # inference
-    actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
-    
-    if len(specialist_features) != 0:
-        final_features = list(specialist_features.columns) + final_features
+    if vote == 3 or vote == 2:
+        final_features = [element for element, count in selectedFeatures.items() if count >= vote]
+        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+    elif vote == 0:
+        f_features = []
+        ac_score = []
+        pr_score = []
+        val_per = []
+        
+        # for strict choice
+        final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
+        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+        f_features = f_features + [final_features]
+        ac_score = ac_score + [actual_score]
+        pr_score = pr_score + [predicted_score]
+        val_per = val_per + [validationPerformance]
+        
+        # for loose choice
+        final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
+        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+        f_features = f_features + [final_features]
+        ac_score = ac_score + [actual_score]
+        pr_score = pr_score + [predicted_score]
+        val_per = val_per + [validationPerformance]
+        
+        final_features = f_features
+        actual_score = ac_score
+        predicted_score = pr_score
+        validationPerformance = val_per
     
     return final_features, actual_score, predicted_score, validationPerformance
         

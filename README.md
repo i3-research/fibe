@@ -18,16 +18,16 @@ Here,
 - ``balance`` In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
 - ``model_name`` For 'regression' task, to choose from 'linerSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', and 'consensus' (consensus using 'linerSVR', 'gaussianSVR', and 'RegressionForest'). Default is ``'linerSVR'``. For 'classification' task, to choose from 'linerSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linerSVC', 'gaussianSVC', and 'RandomForest'). Default is ``'linerSVC'``.
 - ``metric`` For ``regression`` task, to choose from 'MAE' and 'MAPE'. Default is 'MAE.' For 'classification' task, to choose from 'Accuracy', 'F1-score', and 'binaryROC'. Default is ``'Accuracy'``.
-- ``voting_strictness`` either 'strict' that chooses those features that is selected at least 3 times in 5-fold cross-validation, or 'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. Default is ``'strict'``. For any random number of folds, ``N``, 'strict' threshold should be ``0.6 X N`` and 'loose' threshold should be ``0.4 X N``.
+- ``voting_strictness`` The option 'strict' chooses those features that is selected at least 3 times in 5-fold cross-validation; the option 'loose' chooses those features that is selected at least 2 times in 5-fold cross-validation, and the option 'both' produces two sets of results, one for 'strict' and one for 'loose'. Default is ``'strict'``. For any random number of folds, ``N``, 'strict' threshold should be ``0.6 X N`` and 'loose' threshold should be ``0.4 X N``.
 - ``nFold`` Number of folds in cross-validation. Preferred and default is ``5``.
 - ``maxIter`` is the maximum number of iteration that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. Default is ``3``.
 - ``verbose`` generates text for intermediate loss and selected feature list during iteration. Default is ``True``.
 
 The outputs are:
-- ``selectedFeatures`` is the list of features if ``columns_names`` was not ``None``. Otherwise column indexes of the selected features.
-- ``actualScore`` is the list containing actual target scores. If ``model_name`` is chosen as 'consensus', this list has repetition of values 3 time, to correspond to predictions by three models. 
-- ``predictedScore`` is the list containing predicted scores. If ``model_name`` is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation is generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision making.
-- ``validationPerformance`` is a list containing validation performance in terms of chosen ``metric`` for ``nFold`` folds.
+- ``selectedFeatures`` is the list of features if ``columns_names`` was not ``None``. Otherwise column indexes of the selected features. For ``voting_strictness`` of 'both', ``selectedFeatures`` contains two sets of output as ``[[selected features for 'strict'], [selected feature for 'loose']]``. 
+- ``actualScore`` is the list containing actual target scores. If ``model_name`` is chosen as 'consensus', this list has repetition of values 3 time, to correspond to predictions by three models. For ``voting_strictness`` of 'both', ``actualScore`` contains two sets of output as ``[[actual scores for 'strict'], [actual scores for 'loose']]``.
+- ``predictedScore`` is the list containing predicted scores. If ``model_name`` is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation is generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision making. For ``voting_strictness`` of 'both', ``predictedScore`` contains two sets of output as ``[[predicted scores for 'strict'], [predicted score for 'loose']]``.
+- ``validationPerformance`` is a list containing validation performance in terms of chosen ``metric`` for ``nFold`` folds. For ``voting_strictness`` of 'both', ``validationPerformance`` contains two sets of output as ``[[validation performance for 'strict'], [validation performance score for 'loose']]``.
 
 ## Algorithm Overview
 ![Alt text](figure/figure_v2.png?raw=true "Title")
