@@ -14,19 +14,19 @@ Here,
 - ``score_df`` is the 1D score vector as a column (supports DataFrame, Numpy Array, and List).
 - ``fixed_features`` Predefined features that must stay in the feature set and the FIBE algorithm does not add or remove those. Must be either a List of names to select from 'feature_df,' or DataFrame of features added separately to 'feature_df.'
 - ``columns_names`` contain the names of the features. The algorithm returns the names of the selected features from this list. If not available, then the algorithm returns the column indexes of selected features. 
-- ``task_type`` either 'regression' or 'classification.' Default is 'regression.'
+- ``task_type`` either 'regression' or 'classification.' The default is 'regression.'
 - ``balance`` In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
-- ``model_name`` For 'regression' task, to choose from 'linerSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', and 'consensus' (consensus using 'linerSVR', 'gaussianSVR', and 'RegressionForest'). Default is ``'linerSVR'``. For 'classification' task, to choose from 'linerSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linerSVC', 'gaussianSVC', and 'RandomForest'). Default is ``'linerSVC'``.
-- ``metric`` For ``regression`` task, to choose from 'MAE' and 'MAPE'. Default is 'MAE.' For 'classification' task, to choose from 'Accuracy', 'F1-score', and 'binaryROC'. Default is ``'Accuracy'``.
-- ``voting_strictness`` The option 'strict' chooses those features that is selected at least 3 times in 5-fold cross-validation; the option 'loose' chooses those features that is selected at least 2 times in 5-fold cross-validation, and the option 'both' produces two sets of results, one for 'strict' and one for 'loose'. Default is ``'strict'``. For any random number of folds, ``N``, 'strict' threshold should be ``0.6 X N`` and 'loose' threshold should be ``0.4 X N``.
+- ``model_name`` For 'regression' task, to choose from 'linerSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', and 'consensus' (consensus using 'linerSVR', 'gaussianSVR', and 'RegressionForest'). Default is ``'linerSVR'``. For the 'classification' task, choose from 'linerSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linerSVC', 'gaussianSVC', and 'RandomForest'). The default is ``'linerSVC'``.
+- ``metric`` For the ``regression`` task, choose from 'MAE' and 'MAPE'. The default is 'MAE.' For the 'classification' task, choose from 'Accuracy', 'F1-score', and 'binaryROC'. The default is ``'Accuracy'``.
+- ``voting_strictness`` The option 'strict' chooses those features that are selected at least 3 times in 5-fold cross-validation; the option 'loose' chooses those features that are selected at least 2 times in 5-fold cross-validation, and the option 'both' produces two sets of results, one for 'strict' and one for 'loose'. The default is ``'strict'``. For any random number of folds, ``N``, the 'strict' threshold should be ``0.6 X N`` and the 'loose' threshold should be ``0.4 X N``.
 - ``nFold`` Number of folds in cross-validation. Preferred and default is ``5``.
-- ``maxIter`` is the maximum number of iteration that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. Default is ``3``.
-- ``verbose`` generates text for intermediate loss and selected feature list during iteration. Default is ``True``.
+- ``master `` is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is ``3``.
+- ``verbose`` generates text for intermediate loss and selected feature list during iteration. The default is ``True``.
 
 The outputs are:
 - ``selectedFeatures`` is the list of features if ``columns_names`` was not ``None``. Otherwise column indexes of the selected features. For ``voting_strictness`` of 'both', ``selectedFeatures`` contains two sets of output as ``[[selected features for 'strict'], [selected feature for 'loose']]``. 
-- ``actualScore`` is the list containing actual target scores. If ``model_name`` is chosen as 'consensus', this list has repetition of values 3 time, to correspond to predictions by three models. For ``voting_strictness`` of 'both', ``actualScore`` contains two sets of output as ``[[actual scores for 'strict'], [actual scores for 'loose']]``.
-- ``predictedScore`` is the list containing predicted scores. If ``model_name`` is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation is generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision making. For ``voting_strictness`` of 'both', ``predictedScore`` contains two sets of output as ``[[predicted scores for 'strict'], [predicted score for 'loose']]``.
+- ``actualScore`` is the list containing actual target scores. If ``model_name`` is chosen as 'consensus', this list has a repetition of values 3 times, to correspond to predictions by three models. For ``voting_strictness`` of 'both', ``actualScore`` contains two sets of output as ``[[actual scores for 'strict'], [actual scores for 'loose']]``.
+- ``predictedScore`` is the list containing predicted scores. If ``model_name`` is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation are generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision-making. For ``voting_strictness`` of 'both', ``predictedScore`` contains two sets of output as ``[[predicted scores for 'strict'], [predicted score for 'loose']]``.
 - ``validationPerformance`` is a list containing validation performance in terms of chosen ``metric`` for ``nFold`` folds. For ``voting_strictness`` of 'both', ``validationPerformance`` contains two sets of output as ``[[validation performance for 'strict'], [validation performance score for 'loose']]``.
 
 ## Algorithm Overview
@@ -34,10 +34,10 @@ The outputs are:
 Figure: Schematic diagram of our FIBE algorithm.
 
 ## Example Code
-An example python file ``main.py`` is given. It includes example code to run one classification and one regression problems. Further, it includes examples on how to run the algorithm with predefined fixed features as well as data balancing option.
+An example Python file ``main.py`` is given. It includes example code to run one classification and one regression problem. Further, it includes examples of how to run the algorithm with predefined fixed features as well as data balancing options.
 
 ## Required Packages
-Please refer to ``requirements.txt`` file.
+Please refer to the ``requirements.txt`` file.
 
 ## Suggestions and Comments
 - Prof. Yangming Ou, PhD (Yangming.Ou@childrens.harvard.edu)
