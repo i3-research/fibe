@@ -14,7 +14,7 @@
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
 # INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
 # PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE
-# FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
 
@@ -39,38 +39,38 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
             Must be either a List of names to select from 'feature_df', or DataFrame of features added separately to 'feature_df.'
     columns_names: contain the names of the features. The algorithm returns the names of the selected features from this list. 
             If not available, then the algorithm returns the column indexes of selected features. 
-    task_type: either 'regression' or 'classification.' Default is 'regression.'
+    task_type: either 'regression' or 'classification.' The default is 'regression.'
     balance: In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
-    model_name: For 'regression' task, to choose from 'linerSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', 
-            and 'consensus' (consensus using 'linerSVR', 'gaussianSVR', and 'RegressionForest'). Default is 'linerSVR'. For 'classification' task, 
-            to choose from 'linerSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linerSVC', 
-            'gaussianSVC', and 'RandomForest'). Default is 'linerSVC'.
-    metric: For 'regression' task, to choose from 'MAE' and 'MAPE'. Default is 'MAE.' For 'classification' task, to choose from 'Accuracy', 
-            'F1-score,' and 'binaryROC'. Default is 'Accuracy'.
+    model_name: For the 'regression' task, choose from 'linearSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', 
+            and 'consensus' (consensus using 'linearSVR', 'gaussianSVR', and 'RegressionForest'). The default is 'linearSVR'. For 'classification' task, 
+            to choose from 'linearSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linerSVC', 
+            'gaussianSVC', and 'RandomForest'). The default is 'linearSVC'.
+    metric: For the 'regression' task, choose from 'MAE' and 'MAPE'. The default is 'MAE.' For the 'classification' task, choose from 'Accuracy', 
+            'F1-score,' and 'binaryROC'. The default is 'Accuracy'.
     voting_strictness: either 'strict' that chooses those features that is selected at least 3 times in 5-fold cross-validation, or 
-            'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. Default is 'strict'.
-            For any random number of folds, N, 'strict' threshold should be 0.6 X N and 'loose' threshold should be 0.4 X N.
+            'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. The default is 'strict'.
+            For any random number of folds, N, the 'strict' threshold should be 0.6 X N and the 'loose' threshold should be 0.4 X N.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
-    maxIter: is the maximum number of iteration that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. Default is '3'.
-    verbose: generates text for intermediate loss and selected feature list during iteration. Default is 'True'.
+    maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
+    verbose: generates text for intermediate loss and selected feature list during iteration. The default is 'True'.
 
     The outputs are:
     selectedFeatures: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features. For 'voting_strictness' of 'both', 
             'selectedFeatures' contains two sets of output as [[selected features for 'strict'], [selected feature for 'loose']].
-    actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has repetition of values 3 time, to correspond to 
+    actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has a repetition of values 3 times, to correspond to 
             predictions by three models. For 'voting_strictness' of 'both', 'actualScore' contains two sets of output as [[actual scores for 'strict'], [actual scores for 'loose']].
     predictedScore: is the list containing predicted scores. If 'model_name' is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation 
-            is generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision making. For 'voting_strictness' of 'both', 'predictedScore' contains two sets of 
+            are generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision-making. For 'voting_strictness' of 'both', 'predictedScore' contains two sets of 
             output as [[predicted scores for 'strict'], [predicted score for 'loose']].
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
             two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']].
     '''
     
     
-    # checking and converting to DataFrame if the features are in numpy array format
+    # Checking and converting to DataFrame if the features are in numpy array format
     if type(feature_df) is np.ndarray:
         if columns_names != None:
-            # checking if the length of feature names are equal to the feature column numbers
+            # checking if the length of feature names is equal to the feature column numbers
             if feature_df.shape[1] != len(columns_names):
                 raise ValueError("Number of columns in the Feature is not equal to the number of column names provided")
             else:
@@ -78,7 +78,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
         else:
             feature_df = pd.DataFrame(data=feature_df)
             
-    # checking and converting to DataFrame if the features are in list format
+    # Checking and converting to DataFrame if the features are in list format
     elif isinstance(feature_df, list):
         if columns_names != None:
             # checking if the length of feature names are equal to the feature column numbers
@@ -93,7 +93,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     if type(score_df) is np.ndarray:
         score_df = pd.DataFrame(data=score_df)
     
-    # checking and converting to DataFrame if the target is in list format
+    # Checking and converting to DataFrame if the target is in list format
     elif isinstance(score_df, list):
         score_df = pd.DataFrame(data=score_df)
     
