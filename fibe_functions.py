@@ -453,15 +453,19 @@ def inference(final_features, nFold, feature_df, score_df, specialist_features, 
         df_val_s = score_df.iloc[infer_fold[1]]
         df_val_f = test_df[final_features]
         
-        if balance == True:
-            if len(specialist_features) != 0:
-                df_f, df_s = balanceData(pd.concat([train_specialist, df_f], axis=1), df_s)
-                df_val_f, df_val_s = balanceData(pd.concat([test_specialist, df_val_f], axis=1), df_val_s)
-            else:
-                df_f, df_s = balanceData(df_f, df_s)
-                df_val_f, df_val_s = balanceData(df_val_f, df_val_s)
-        else:
-            if len(specialist_features) != 0:
+        # if balance == True:
+          #  if len(specialist_features) != 0:
+           #     df_f, df_s = balanceData(pd.concat([train_specialist, df_f], axis=1), df_s)
+           #     df_val_f, df_val_s = balanceData(pd.concat([test_specialist, df_val_f], axis=1), df_val_s)
+          #  else:
+          #      df_f, df_s = balanceData(df_f, df_s)
+           #     df_val_f, df_val_s = balanceData(df_val_f, df_val_s)
+        # else:
+          #  if len(specialist_features) != 0:
+          #      df_f = pd.concat([train_specialist, df_f], axis=1)
+          #      df_val_f = pd.concat([test_specialist, df_val_f], axis=1)
+        
+        if len(specialist_features) != 0:
                 df_f = pd.concat([train_specialist, df_f], axis=1)
                 df_val_f = pd.concat([test_specialist, df_val_f], axis=1)
         
