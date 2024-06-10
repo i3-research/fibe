@@ -209,7 +209,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, verbose)
     
     # inference
-    if vote == 3 or vote == 2:
+    if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         final_features = [element for element, count in selectedFeatures.items() if count >= vote]
         actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
         if len(specialist_features) != 0:
