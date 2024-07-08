@@ -616,8 +616,8 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
         valPerformanceByFold.append(np.mean(accumulated_performance))
     else:
         # Fit data to a model with the selected features and predict
-        model_.fit(df_val_f, score_df.values.ravel())
-        y_pred = model_.predict(inference_data_df)
+        model.fit(df_val_f, score_df.values.ravel())
+        y_pred = model.predict(inference_data_df)
             
         # Calculate the mean absolute error for the validation set
         valPerformanceByFold.append(loss_estimation(metric, inference_score_df, y_pred))
