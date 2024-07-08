@@ -7,7 +7,7 @@ https://github.com/i3-research/fibe
 ## How to Run the Algorithm
 To run this algorithm, the following function is needed to call with appropriate parameter selection:
 
-``selectedFeatures, actualScore, predictedScore, validationPerformance = fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, verbose=True)``
+``selectedFeatures, actualScore, predictedScore, validationPerformance = fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True)``
 
 Here, 
 - ``feature_df`` is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
@@ -21,6 +21,10 @@ Here,
 - ``voting_strictness`` The option 'strict' chooses those features that are selected at least 3 times in 5-fold cross-validation; the option 'loose' chooses those features that are selected at least 2 times in 5-fold cross-validation, and the option 'both' produces two sets of results, one for 'strict' and one for 'loose'. The default is ``'strict'``. For any random number of folds, ``N``, the 'strict' threshold should be ``0.6 X N`` and the 'loose' threshold should be ``0.4 X N``.
 - ``nFold`` Number of folds in cross-validation. Preferred and default is ``5``.
 - ``master `` is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is ``3``.
+- ``save_intermediate`` If True, saves intermediate results to the specified directory. Default is False.
+- ``output_dir`` Directory where intermediate results are saved if save_intermediate is True.
+- ``inference_data_df`` Data for optional second inference cohort for prediction using the selected subset of features.
+- ``inference_score_df`` Scores for optional second inference cohort for prediction using the selected subset of features.
 - ``verbose`` generates text for intermediate loss and selected feature list during iteration. The default is ``True``.
 
 The outputs are:

@@ -69,7 +69,6 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
             output as [[predicted scores for 'strict'], [predicted score for 'loose']].
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
             two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']].
-    inferenceResults: if inference_df is provided, contains the prediction results for each subject in the inference cohort.
     '''
     
     
