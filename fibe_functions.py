@@ -49,7 +49,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     metric: For the 'regression' task, choose from 'MAE' and 'MAPE'. The default is 'MAE.' For the 'classification' task, choose from 'Accuracy', 
             'F1-score,' and 'binaryROC'. The default is 'Accuracy'.
     voting_strictness: either 'strict' that chooses those features that is selected at least 3 times in 5-fold cross-validation, or 
-            'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation. The default is 'strict'.
+            'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation, or 'both' that chooses both strict and loose options. The default is 'strict'.
             For any random number of folds, N, the 'strict' threshold should be 0.6 X N and the 'loose' threshold should be 0.4 X N.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
@@ -63,12 +63,15 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     selectedFeatures: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features. For 'voting_strictness' of 'both', 
             'selectedFeatures' contains two sets of output as [[selected features for 'strict'], [selected feature for 'loose']].
     actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has a repetition of values 3 times, to correspond to 
-            predictions by three models. For 'voting_strictness' of 'both', 'actualScore' contains two sets of output as [[actual scores for 'strict'], [actual scores for 'loose']].
+            predictions by three models. For 'voting_strictness' of 'both', 'actualScore' contains two sets of output as [[actual scores for 'strict'], [actual scores for 'loose']]. If the argument 
+            'save_intermediate' is set 'True', 'actualScore[-1]' contains an additional list of actual score values of the inference data.
     predictedScore: is the list containing predicted scores. If 'model_name' is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation 
             are generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision-making. For 'voting_strictness' of 'both', 'predictedScore' contains two sets of 
-            output as [[predicted scores for 'strict'], [predicted score for 'loose']].
+            output as [[predicted scores for 'strict'], [predicted score for 'loose']]. If the argument 'save_intermediate' is set 'True', 'predictedScore[-1]' contains an additional list 
+            of predicted score values for the inference data.
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
-            two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']].
+            two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']]. If the argument 'save_intermediate' is set 'True', 'validationPerformance[-1]' 
+            contains an value for estimated error/accuracy metric for the inference data.
     '''
     
     
@@ -507,9 +510,20 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
         # saving intermediate results: features selected in each outer fold
         if save_intermediate:
             if output_dir is not None:
-                os.makedirs(output_dir, exist_ok=True)
-                with open(os.path.join(output_dir, f"Selected_features_at_fold_{oF}.txt"), "w") as f:
-                    f.write(f"{selected_features}")
+                # Check if the directory exists or can be created
+                if not os.path.exists(output_dir):
+                    try:
+                        os.makedirs(output_dir)
+                    except OSError as e:
+                        raise RuntimeError(f"Error creating directory '{output_dir}': {e}")
+
+                # Check if the user has write permission to the directory
+                if os.access(output_dir, os.W_OK):
+                    # Directory exists and user has write permission
+                    with open(os.path.join(output_dir, f"Selected_features_at_fold_{oF}.txt"), "w") as f:
+                        f.write(f"{selected_features}")
+                else:
+                    raise PermissionError(f"You do not have write permission to directory '{output_dir}'")
 
         # saving features selected across all outer folds
         frequency_of_features_selected_all_fold = frequency_of_features_selected_all_fold + selected_features
@@ -595,6 +609,14 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
     
     if len(specialist_features) != 0:
         df_val_f = pd.concat([specialist_features, feature_df[final_features]], axis=1)
+    else:
+        df_val_f = feature_df[final_features]
+ 
+    specialist_features = pd.DataFrame(specialist_features)
+    specialist_feature_names = list(specialist_features.columns)
+    all_column_names = specialist_feature_names + final_features
+
+    inference_data_df2 = inference_data_df[all_column_names].copy()
 
     if model_name == 'consensus':
         accumulated_performance = []
@@ -603,7 +625,7 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
             
             # Fit data to a model with the selected features and predict
             model_.fit(df_val_f, score_df.values.ravel())
-            y_pred = model_.predict(inference_data_df)
+            y_pred = model_.predict(inference_data_df2)
                 
             # Calculate the performance for the validation set
             accumulated_performance.append(loss_estimation(metric, inference_score_df, y_pred))
@@ -616,7 +638,7 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
     else:
         # Fit data to a model with the selected features and predict
         model.fit(df_val_f, score_df.values.ravel())
-        y_pred = model.predict(inference_data_df)
+        y_pred = model.predict(inference_data_df2)
             
         # Calculate the mean absolute error for the validation set
         valPerformanceByFold.append(loss_estimation(metric, inference_score_df, y_pred))
