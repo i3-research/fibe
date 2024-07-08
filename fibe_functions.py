@@ -29,8 +29,9 @@ from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from sklearn.svm import SVR, SVC
 from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
 from sklearn.utils import resample
+import os
 
-def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, verbose=True):
+def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
     '''
     feature_df: is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
@@ -52,6 +53,10 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
             For any random number of folds, N, the 'strict' threshold should be 0.6 X N and the 'loose' threshold should be 0.4 X N.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
+    save_intermediate: if True, saves intermediate results to the specified directory. Default is False.
+    output_dir: directory where intermediate results are saved if save_intermediate is True.
+    inference_data_df: data for optional second inference cohort for prediction using the selected subset of features.
+    inference_score_df: scores for optional second inference cohort for prediction using the selected subset of features.
     verbose: generates text for intermediate loss and selected feature list during iteration. The default is 'True'.
 
     The outputs are:
@@ -64,6 +69,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
             output as [[predicted scores for 'strict'], [predicted score for 'loose']].
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
             two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']].
+    inferenceResults: if inference_df is provided, contains the prediction results for each subject in the inference cohort.
     '''
     
     
@@ -100,6 +106,44 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     # checking if the observation/subject numbers are equal in features and in targets
     if feature_df.shape[0] != score_df.shape[0]:
         raise ValueError("Number of rows in the Feature is not equal to the number of rows in Score")
+
+    if inference_data_df is not None and inference_score_df is None:
+        raise ValueError("Scores for inference cohort is not provided.")
+    
+    if inference_data_df is not None and inference_score_df is not None:
+        # Checking and converting to DataFrame if the inference features are in numpy array format
+        if type(inference_data_df) is np.ndarray:
+            if columns_names != None:
+                # checking if the length of feature names is equal to the feature column numbers
+                if inference_data_df.shape[1] != len(columns_names):
+                    raise ValueError("Number of columns in the inference feature is not equal to the number of column names provided")
+                else:
+                    inference_data_df = pd.DataFrame(data=inference_data_df, columns=columns_names)
+            else:
+                inference_data_df = pd.DataFrame(data=inference_data_df)
+                
+        # Checking and converting to DataFrame if the features are in list format
+        elif isinstance(inference_data_df, list):
+            if columns_names != None:
+                # checking if the length of feature names are equal to the feature column numbers
+                if len(inference_data_df[0]) != len(columns_names):
+                    raise ValueError("Number of columns in the inference feature is not equal to the number of column names provided")
+                else:
+                    inference_data_df = pd.DataFrame(data=inference_data_df, columns=columns_names)
+            else:
+                inference_data_df = pd.DataFrame(data=inference_data_df)
+
+        # checking and converting to DataFrame if the target is in numpy array format
+        if type(inference_score_df) is np.ndarray:
+            inference_score_df = pd.DataFrame(data=inference_score_df)
+        
+        # Checking and converting to DataFrame if the target is in list format
+        elif isinstance(inference_score_df, list):
+            inference_score_df = pd.DataFrame(data=inference_score_df)
+    
+        # checking if the observation/subject numbers are equal in features and in targets
+        if inference_data_df.shape[0] != inference_score_df.shape[0]:
+            raise ValueError("Number of rows in the inference feature is not equal to the number of rows in inference score")
     
     if fixed_features is not None:
         if isinstance(fixed_features, list):
@@ -204,9 +248,13 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
         vote = 0
     else:
         raise ValueError("Unknown voting strictness. Must be either 'strict' or 'loose.'")
-        
+    
+    if save_intermediate and output_dir is None:
+        raise ValueError("Directory for saving intermediate results is not provided.")
+
+
     # training a model
-    selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, verbose)
+    selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, save_intermediate, output_dir, verbose)
     
     # inference
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
@@ -245,10 +293,43 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
         predicted_score = pr_score
         validationPerformance = val_per
     
+    # inference on additional data
+    if inference_data_df is not None and inference_score_df is not None:
+        if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
+            final_features = [element for element, count in selectedFeatures.items() if count >= vote]
+            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric)
+        
+        elif vote == 0:
+            ac_score_add = []
+            pr_score_add = []
+            val_per_add = []
+            
+            # for strict choice
+            final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
+            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric)
+            ac_score_add = ac_score_add + [actual_score_add]
+            pr_score_add = pr_score_add + [predicted_score_add]
+            val_per_add = val_per_add + [validationPerformance_add]
+            
+            # for loose choice
+            final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
+            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric)
+            ac_score_add = ac_score_add + [actual_score_add]
+            pr_score_add = pr_score_add + [predicted_score_add]
+            val_per_add = val_per_add + [validationPerformance_add]
+            
+            actual_score_add = ac_score_add
+            predicted_score_add = pr_score_add
+            validationPerformance_add = val_per_add
+
+        actual_score = actual_score + [actual_score_add]  
+        predicted_score = predicted_score + [predicted_score_add]
+        validationPerformance = validationPerformance + [validationPerformance_add]
+
     return final_features, actual_score, predicted_score, validationPerformance
         
         
-def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, verbose=False):
+def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, save_intermediate, output_dir, verbose=False):
     max_iter = maxIter
     kf5 = KFold(n_splits = nFold, shuffle = False)
     
@@ -424,6 +505,13 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                             else:
                                 print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {highest_accuracy:.4f}, Features: {selected_features}")
         
+        # saving intermediate results: features selected in each outer fold
+        if save_intermediate:
+            if output_dir is not None:
+                os.makedirs(output_dir, exist_ok=True)
+                with open(os.path.join(output_dir, f"Selected_features_at_fold_{oF}.txt"), "w") as f:
+                    f.write(f"{selected_features}")
+
         # saving features selected across all outer folds
         frequency_of_features_selected_all_fold = frequency_of_features_selected_all_fold + selected_features
         
@@ -496,6 +584,46 @@ def inference(final_features, nFold, feature_df, score_df, specialist_features, 
             actual_score.append(df_val_s.values.ravel().tolist())
             predicted_score.append(y_pred.tolist())
         
+        actual = [item for sublist in actual_score for item in sublist]
+        predicted = [round(item, 2) for sublist in predicted_score for item in sublist]
+            
+    return actual, predicted, valPerformanceByFold
+
+def inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric):
+    valPerformanceByFold = []
+    actual_score = []
+    predicted_score = []
+    
+    if len(specialist_features) != 0:
+        df_val_f = pd.concat([specialist_features, feature_df[final_features]], axis=1)
+
+    if model_name == 'consensus':
+        accumulated_performance = []
+        for one_model in model:
+            model_ = model[one_model]
+            
+            # Fit data to a model with the selected features and predict
+            model_.fit(df_val_f, score_df.values.ravel())
+            y_pred = model_.predict(inference_data_df)
+                
+            # Calculate the performance for the validation set
+            accumulated_performance.append(loss_estimation(metric, inference_score_df, y_pred))
+            
+            # save the actual and prediction scores
+            actual_score.append(inference_score_df.values.ravel().tolist())
+            predicted_score.append(y_pred.tolist())
+        
+        valPerformanceByFold.append(np.mean(accumulated_performance))
+    else:
+        # Fit data to a model with the selected features and predict
+        model_.fit(df_val_f, score_df.values.ravel())
+        y_pred = model_.predict(inference_data_df)
+            
+        # Calculate the mean absolute error for the validation set
+        valPerformanceByFold.append(loss_estimation(metric, inference_score_df, y_pred))
+        actual_score.append(inference_score_df.values.ravel().tolist())
+        predicted_score.append(y_pred.tolist())
+
         actual = [item for sublist in actual_score for item in sublist]
         predicted = [round(item, 2) for sublist in predicted_score for item in sublist]
             
