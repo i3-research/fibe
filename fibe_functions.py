@@ -261,7 +261,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     # inference
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         final_features = [element for element, count in selectedFeatures.items() if count >= vote]
-        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
+        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     elif vote == 0:
@@ -272,7 +272,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
         
         # for strict choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
-        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
+        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
         f_features = f_features + [final_features]
@@ -282,7 +282,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
         
         # for loose choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
-        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric)
+        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
         f_features = f_features + [final_features]
@@ -299,7 +299,7 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
     if inference_data_df is not None and inference_score_df is not None:
         if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
             final_features = [element for element, count in selectedFeatures.items() if count >= vote]
-            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric)
+            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
         
         elif vote == 0:
             ac_score_add = []
@@ -308,14 +308,14 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
             
             # for strict choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
-            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric)
+            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
             ac_score_add = ac_score_add + [actual_score_add]
             pr_score_add = pr_score_add + [predicted_score_add]
             val_per_add = val_per_add + [validationPerformance_add]
             
             # for loose choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
-            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric)
+            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
             ac_score_add = ac_score_add + [actual_score_add]
             pr_score_add = pr_score_add + [predicted_score_add]
             val_per_add = val_per_add + [validationPerformance_add]
@@ -532,7 +532,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
     return feature_counts
 
 
-def inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric):
+def inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type):    # Added task_type
     kf5 = KFold(n_splits = nFold, shuffle = False)
     valPerformanceByFold = []
     actual_score = []
@@ -571,22 +571,31 @@ def inference(final_features, nFold, feature_df, score_df, specialist_features, 
                 df_val_f = pd.concat([test_specialist, df_val_f], axis=1)
         
         if model_name == 'consensus':
-            accumulated_performance = []
+            predictions = []
             for one_model in model:
                 model_ = model[one_model]
                 
                 # Fit data to a model with the selected features and predict
                 model_.fit(df_f, df_s.values.ravel())
                 y_pred = model_.predict(df_val_f)
-                    
-                # Calculate the performance for the validation set
-                accumulated_performance.append(loss_estimation(metric, df_val_s, y_pred))
-                
-                # save the actual and prediction scores
-                actual_score.append(df_val_s.values.ravel().tolist())
-                predicted_score.append(y_pred.tolist())
+                predictions.append(y_pred)
             
-            valPerformanceByFold.append(np.mean(accumulated_performance))
+            if task_type == 'regression':
+                consensus_pred = [(a+b+c)/3 for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
+            elif task_type == 'classification':
+                def majority_vote(a,b,c):
+                    return 1 if a+b+c>1 else 0
+                consensus_pred = [majority_vote(a,b,c) for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
+            
+                   
+            # Calculate the performance for the validation set
+            performance = loss_estimation(metric, df_val_s, consensus_pred)
+                
+            # save the actual and prediction scores
+            actual_score.append(df_val_s.values.ravel().tolist())
+            predicted_score.append(consensus_pred)
+            
+            valPerformanceByFold.append(performance)
         else:
             # Fit data to a model with the selected features and predict
             model.fit(df_f, df_s.values.ravel())
@@ -602,7 +611,7 @@ def inference(final_features, nFold, feature_df, score_df, specialist_features, 
             
     return actual, predicted, valPerformanceByFold
 
-def inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric):
+def inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type):    # Added task_type
     valPerformanceByFold = []
     actual_score = []
     predicted_score = []
@@ -619,22 +628,31 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
     inference_data_df2 = inference_data_df[all_column_names].copy()
 
     if model_name == 'consensus':
-        accumulated_performance = []
+        predictions = []
         for one_model in model:
             model_ = model[one_model]
             
             # Fit data to a model with the selected features and predict
-            model_.fit(df_val_f, score_df.values.ravel())
-            y_pred = model_.predict(inference_data_df2)
-                
-            # Calculate the performance for the validation set
-            accumulated_performance.append(loss_estimation(metric, inference_score_df, y_pred))
-            
-            # save the actual and prediction scores
-            actual_score.append(inference_score_df.values.ravel().tolist())
-            predicted_score.append(y_pred.tolist())
+            model_.fit(df_f, df_s.values.ravel())
+            y_pred = model_.predict(df_val_f)
+            predictions.append(y_pred)
         
-        valPerformanceByFold.append(np.mean(accumulated_performance))
+        if task_type == 'regression':
+            consensus_pred = [(a+b+c)/3 for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
+        elif task_type == 'classification':
+            def majority_vote(a,b,c):
+                return 1 if a+b+c>1 else 0
+            consensus_pred = [majority_vote(a,b,c) for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
+        
+               
+        # Calculate the performance for the validation set
+        performance = loss_estimation(metric, df_val_s, consensus_pred)
+            
+        # save the actual and prediction scores
+        actual_score.append(df_val_s.values.ravel().tolist())
+        predicted_score.append(consensus_pred)
+        
+        valPerformanceByFold.append(performance)
     else:
         # Fit data to a model with the selected features and predict
         model.fit(df_val_f, score_df.values.ravel())
