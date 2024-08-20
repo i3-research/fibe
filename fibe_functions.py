@@ -30,12 +30,14 @@ from sklearn.svm import SVR, SVC
 from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
 from sklearn.utils import resample
 import os
+from data_curation import data_curation, log_files_generator
 
-def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
+def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
     '''
     feature_df: is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
     score_df: is the 1D score vector as a column (supports DataFrame, Numpy Array, and List).
+    data_cleaning: if True, cleans the data including dropping invalid and imbalanced features, mapping categories to numeric values, imputing data with median/mean values.
     fixed_features: Predefined features that must stay in the feature set and the FIBE algorithm does not add or remove those. 
             Must be either a List of names to select from 'feature_df', or DataFrame of features added separately to 'feature_df.'
     columns_names: contain the names of the features. The algorithm returns the names of the selected features from this list. 
@@ -73,6 +75,14 @@ def fibe(feature_df, score_df, fixed_features=None, columns_names=None, task_typ
             two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']]. If the argument 'save_intermediate' is set 'True', 'validationPerformance[-1]' 
             contains an value for estimated error/accuracy metric for the inference data.
     '''
+
+    
+    # Data Curation : Added by Ankush Kesri
+    if data_cleaning == True:
+        feature_df, drop_log, mapping_list, imputation_log = data_curation(feature_df)
+    
+        # Saving log files
+        log_files_generator(drop_log, mapping_list, imputation_log, output_dir)
     
     
     # Checking and converting to DataFrame if the features are in numpy array format
