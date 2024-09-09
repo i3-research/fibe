@@ -196,9 +196,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         elif model_name == 'RegressionForest':
             model = RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
-            model = AdaBoostRegressor(base_estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            model = AdaBoostRegressor(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVR':
-            model = AdaBoostRegressor(base_estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
+            model = AdaBoostRegressor(estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
             model = { 
             "Regression Forest" : RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5),
