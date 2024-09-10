@@ -360,212 +360,163 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
         
         if task_type == 'regression':
             lowest_error = float('inf')
-            error_to_fill = lowest_error #newadd
         else:
             highest_accuracy = float('-inf')
-            error_to_fill = highest_accuracy #newadd
         
         for i in range(max_iter):
-            for q in range(len(feature_df.columns)): 
-                if verbose:
-                    print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}]")
-                temp_error = []
-                for feature in feature_df.columns:
-                    if feature in selected_features:
-                        temp_error.append(error_to_fill)
-                        continue
-
-                    # Add the new feature to the selected features
-                    temp_features = selected_features + [feature]
-                    inner_error = []
-
-                    for inner_fold in kf5.split(train_val_df): 
-                        training = train_val_df.iloc[inner_fold[0]]
-                        validation = train_val_df.iloc[inner_fold[1]]
-
+            for feature in feature_df.columns:
+                if feature in selected_features:
+                    continue
+            
+                # Add the new feature to the selected features
+                temp_features = selected_features + [feature]
+                inner_error = []
+                
+                for inner_fold in kf5.split(train_val_df): 
+                    training = train_val_df.iloc[inner_fold[0]]
+                    validation = train_val_df.iloc[inner_fold[1]]
+                    
+                    if len(specialist_features) != 0:
+                        train_spec = train_specialist.iloc[inner_fold[0]]
+                        valid_spec = train_specialist.iloc[inner_fold[1]]
+                    
+                    # training
+                    df_score = train_val_score_df.iloc[inner_fold[0]]
+                    df_feature = training[temp_features]
+                    
+                    # validation
+                    df_val_score = train_val_score_df.iloc[inner_fold[1]]
+                    df_val_feature = validation[temp_features]
+                    
+                    if balance == True:
                         if len(specialist_features) != 0:
-                            train_spec = train_specialist.iloc[inner_fold[0]]
-                            valid_spec = train_specialist.iloc[inner_fold[1]]
-
-                        # training
-                        df_score = train_val_score_df.iloc[inner_fold[0]]
-                        df_feature = training[temp_features]
-
-                        # validation
-                        df_val_score = train_val_score_df.iloc[inner_fold[1]]
-                        df_val_feature = validation[temp_features]
-
-                        if balance == True:
-                            if len(specialist_features) != 0:
-                                df_feature, df_score = balanceData(pd.concat([train_spec, df_feature], axis=1), df_score)
-                                df_val_feature, df_val_score = balanceData(pd.concat([valid_spec, df_val_feature], axis=1), df_val_score)
-                            else:
-                                df_feature, df_score = balanceData(df_feature, df_score)
-                                df_val_feature, df_val_score = balanceData(df_val_feature, df_val_score)
+                            df_feature, df_score = balanceData(pd.concat([train_spec, df_feature], axis=1), df_score)
+                            df_val_feature, df_val_score = balanceData(pd.concat([valid_spec, df_val_feature], axis=1), df_val_score)
                         else:
-                            if len(specialist_features) != 0:
-                                df_feature = pd.concat([train_spec, df_feature], axis=1)
-                                df_val_feature = pd.concat([valid_spec, df_val_feature], axis=1)
-
-                        if model_name == 'consensus':
-                            for one_model in model:
-                                model_ = model[one_model]
-
-                                # Train a Regressor with the selected features and predict
-                                model_.fit(df_feature, df_score.values.ravel())
-                                y_pred = model_.predict(df_val_feature)
-
-                                # Calculate the mean absolute error for the validation set
-                                inner_error.append(loss_estimation(metric, df_val_score, y_pred))
-                        else:
+                            df_feature, df_score = balanceData(df_feature, df_score)
+                            df_val_feature, df_val_score = balanceData(df_val_feature, df_val_score)
+                    else:
+                        if len(specialist_features) != 0:
+                            df_feature = pd.concat([train_spec, df_feature], axis=1)
+                            df_val_feature = pd.concat([valid_spec, df_val_feature], axis=1)
+                    
+                    if model_name == 'consensus':
+                        for one_model in model:
+                            model_ = model[one_model]
+                            
                             # Train a Regressor with the selected features and predict
-                            model.fit(df_feature, df_score.values.ravel())
-                            y_pred = model.predict(df_val_feature)
-
+                            model_.fit(df_feature, df_score.values.ravel())
+                            y_pred = model_.predict(df_val_feature)
+                                
                             # Calculate the mean absolute error for the validation set
                             inner_error.append(loss_estimation(metric, df_val_score, y_pred))
-
-                    temp_error.append(np.mean(inner_error)) #newadd
-
-                    if verbose:
-                        if task_type == 'regression':
-                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Error Found: {np.mean(inner_error)}")
-                        else:
-                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Accuracy Found: {np.mean(inner_error)}")
-
-                if task_type == 'regression':
-                    if np.min(temp_error) < lowest_error:
-                        lowest_error = np.min(temp_error)
-                        selected_features.append(feature_df.columns[np.argmin(temp_error)]) 
-                        if verbose:
-                            if len(specialist_features) != 0:
-                                all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {all_feat}")
-                            else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}")
                     else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..")
-                        break
-                else:
-                    if np.max(inner_error) > highest_accuracy:
-                        highest_accuracy = np.max(inner_error)
-                        selected_features.append(feature_df.columns[np.argmax(temp_error)])
+                        # Train a Regressor with the selected features and predict
+                        model.fit(df_feature, df_score.values.ravel())
+                        y_pred = model.predict(df_val_feature)
+                            
+                        # Calculate the mean absolute error for the validation set
+                        inner_error.append(loss_estimation(metric, df_val_score, y_pred))
+                
+                if task_type == 'regression':
+                    if np.mean(inner_error) < lowest_error:
+                        lowest_error = np.mean(inner_error)
+                        selected_features.append(feature)
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {all_feat}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {lowest_error:.4f}, Features: {all_feat}")
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}")
-                    
-                    else:                                                                   
-                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..")
-                        break
-                    
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {lowest_error:.4f}, Features: {selected_features}")
+                else:
+                    if np.mean(inner_error) > highest_accuracy:
+                        highest_accuracy = np.mean(inner_error)
+                        selected_features.append(feature)
+                        if verbose:
+                            if len(specialist_features) != 0:
+                                all_feat = list(specialist_features.columns) + selected_features
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {highest_accuracy:.4f}, Features: {all_feat}")
+                            else:
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => FI] {metric}: {highest_accuracy:.4f}, Features: {selected_features}")
+            
             # Backward Elimination
             selected_features_ = copy.deepcopy(selected_features)
             
-            for q in range(len(selected_features)):
-                if verbose:
-                    print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}]")
-                temp_error = []
-                for feature in selected_features_:
-                    # remove a feature from the selected features
-                    temp_features = copy.deepcopy(selected_features)
-                    if len(temp_features) == 1:
-                        continue
-                    temp_features.remove(feature)
-                    inner_error = []
-
-                    for inner_fold in kf5.split(train_val_df): 
-                        training = train_val_df.iloc[inner_fold[0]]
-                        validation = train_val_df.iloc[inner_fold[1]]
-
+            for feature in selected_features_:
+                # remove a feature from the selected features
+                temp_features = copy.deepcopy(selected_features)
+                if len(temp_features) == 1:
+                    continue
+                temp_features.remove(feature)
+                inner_error = []
+                
+                for inner_fold in kf5.split(train_val_df): 
+                    training = train_val_df.iloc[inner_fold[0]]
+                    validation = train_val_df.iloc[inner_fold[1]]
+                    
+                    if len(specialist_features) != 0:
+                        train_spec = train_specialist.iloc[inner_fold[0]]
+                        valid_spec = train_specialist.iloc[inner_fold[1]]
+                    
+                    # training
+                    df_score = train_val_score_df.iloc[inner_fold[0]]
+                    df_feature = training[temp_features]
+                    
+                    # validation
+                    df_val_score = train_val_score_df.iloc[inner_fold[1]]
+                    df_val_feature = validation[temp_features]
+                    
+                    if balance == True:
                         if len(specialist_features) != 0:
-                            train_spec = train_specialist.iloc[inner_fold[0]]
-                            valid_spec = train_specialist.iloc[inner_fold[1]]
-
-                        # training
-                        df_score = train_val_score_df.iloc[inner_fold[0]]
-                        df_feature = training[temp_features]
-
-                        # validation
-                        df_val_score = train_val_score_df.iloc[inner_fold[1]]
-                        df_val_feature = validation[temp_features]
-
-                        if balance == True:
-                            if len(specialist_features) != 0:
-                                df_feature, df_score = balanceData(pd.concat([train_spec, df_feature], axis=1), df_score)
-                                df_val_feature, df_val_score = balanceData(pd.concat([valid_spec, df_val_feature], axis=1), df_val_score)
-                            else:
-                                df_feature, df_score = balanceData(df_feature, df_score)
-                                df_val_feature, df_val_score = balanceData(df_val_feature, df_val_score)
+                            df_feature, df_score = balanceData(pd.concat([train_spec, df_feature], axis=1), df_score)
+                            df_val_feature, df_val_score = balanceData(pd.concat([valid_spec, df_val_feature], axis=1), df_val_score)
                         else:
-                            if len(specialist_features) != 0:
-                                df_feature = pd.concat([train_spec, df_feature], axis=1)
-                                df_val_feature = pd.concat([valid_spec, df_val_feature], axis=1)
-
-                        if model_name == 'consensus':
-                            for one_model in model:
-                                model_ = model[one_model]
-
-                                # Train a Regressor with the selected features and predict
-                                model_.fit(df_feature, df_score.values.ravel())
-                                y_pred = model_.predict(df_val_feature)
-
-                                # Calculate the mean absolute error for the validation set
-                                inner_error.append(loss_estimation(metric, df_val_score, y_pred))
-                        else:
+                            df_feature, df_score = balanceData(df_feature, df_score)
+                            df_val_feature, df_val_score = balanceData(df_val_feature, df_val_score)
+                    else:
+                        if len(specialist_features) != 0:
+                            df_feature = pd.concat([train_spec, df_feature], axis=1)
+                            df_val_feature = pd.concat([valid_spec, df_val_feature], axis=1)
+                    
+                    if model_name == 'consensus':
+                        for one_model in model:
+                            model_ = model[one_model]
+                            
                             # Train a Regressor with the selected features and predict
-                            model.fit(df_feature, df_score.values.ravel())
-                            y_pred = model.predict(df_val_feature)
-
+                            model_.fit(df_feature, df_score.values.ravel())
+                            y_pred = model_.predict(df_val_feature)
+                                                    
                             # Calculate the mean absolute error for the validation set
                             inner_error.append(loss_estimation(metric, df_val_score, y_pred))
-
-                    temp_error.append(np.mean(inner_error)) #newadd
-
-                    if verbose:
-                        if task_type == 'regression':
-                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] <- Feature Removed: {feature} | Error Found: {np.mean(inner_error)}")
-                        else:
-                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] <- Feature Removed: {feature} | Accuracy Found: {np.mean(inner_error)}")
-            
+                    else:
+                        # Train a Regressor with the selected features and predict
+                        model.fit(df_feature, df_score.values.ravel())
+                        y_pred = model.predict(df_val_feature)
+                            
+                        # Calculate the mean absolute error for the validation set
+                        inner_error.append(loss_estimation(metric, df_val_score, y_pred))
+                
                 if task_type == 'regression':
-                    if np.min(temp_error) < lowest_error:
-                        lowest_error = np.min(temp_error)                                           
-                        selected_features.remove(selected_features_[np.argmin(temp_error)]) 
+                    if np.mean(inner_error) < lowest_error:
+                        lowest_error = np.mean(inner_error)
+                        selected_features.remove(feature)
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {all_feat}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {lowest_error:.4f}, Features: {all_feat}")
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}")
-                    else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. Going to next iteration.")
-                        break
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {lowest_error:.4f}, Features: {selected_features}")
                 else:
-                    if np.max(inner_error) > highest_accuracy:
-                        highest_accuracy = np.max(inner_error)
-                        selected_features.remove(selected_features_[np.argmax(temp_error)]) 
+                    if np.mean(inner_error) > highest_accuracy:
+                        highest_accuracy = np.mean(inner_error)
+                        selected_features.remove(feature)
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {all_feat}")
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {highest_accuracy:.4f}, Features: {all_feat}")
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}")
-                    else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. Going to next iteration.")
-                        break
-            if i == 0:
-                f_set_1 = copy.deepcopy(selected_features)
-            else:
-                f_set = copy.deepcopy(selected_features)
-                if sorted(f_set_1) == sorted(f_set):
-                    print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] Selected features in this iteration did not change from the previous iteration. So quiting further iteration.")
-                    break
-                else:
-                    f_set_1 = f_set
-                    
+                                print(f"[Outer Fold: {oF} => Iteration: {i+1} => BE] {metric}: {highest_accuracy:.4f}, Features: {selected_features}")
+        
         # saving intermediate results: features selected in each outer fold
         if save_intermediate:
             if output_dir is not None:
@@ -613,6 +564,17 @@ def inference(final_features, nFold, feature_df, score_df, specialist_features, 
         df_val_s = score_df.iloc[infer_fold[1]]
         df_val_f = test_df[final_features]
         
+        # if balance == True:
+          #  if len(specialist_features) != 0:
+           #     df_f, df_s = balanceData(pd.concat([train_specialist, df_f], axis=1), df_s)
+           #     df_val_f, df_val_s = balanceData(pd.concat([test_specialist, df_val_f], axis=1), df_val_s)
+          #  else:
+          #      df_f, df_s = balanceData(df_f, df_s)
+           #     df_val_f, df_val_s = balanceData(df_val_f, df_val_s)
+        # else:
+          #  if len(specialist_features) != 0:
+          #      df_f = pd.concat([train_specialist, df_f], axis=1)
+          #      df_val_f = pd.concat([test_specialist, df_val_f], axis=1)
         
         if len(specialist_features) != 0:
                 df_f = pd.concat([train_specialist, df_f], axis=1)
