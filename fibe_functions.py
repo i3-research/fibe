@@ -349,6 +349,9 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
 
     oF = 0
     for outer_fold in kf5.split(feature_df):
+        flag_FI = 0
+        flag_BE = 0
+        
         train_val_df = feature_df.iloc[outer_fold[0]]
         train_val_score_df = score_df.iloc[outer_fold[0]]
         if len(specialist_features) != 0:
@@ -368,7 +371,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
         for i in range(max_iter):
             for q in range(len(feature_df.columns)): 
                 if verbose:
-                    print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}]")
+                    print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}]", flush=True)
                 temp_error = []
                 for feature in feature_df.columns:
                     if feature in selected_features:
@@ -429,9 +432,9 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
 
                     if verbose:
                         if task_type == 'regression':
-                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Error Found: {np.mean(inner_error)}")
+                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Error Found: {np.mean(inner_error)}", flush=True)
                         else:
-                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Accuracy Found: {np.mean(inner_error)}")
+                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Accuracy Found: {np.mean(inner_error)}", flush=True)
 
                 if task_type == 'regression':
                     if np.min(temp_error) < lowest_error:
@@ -440,25 +443,27 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {all_feat}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {all_feat}", flush=True)
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}", flush=True)
                     else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..")
+                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..", flush=True)
+                        flag_FI = 1
                         break
                 else:
-                    if np.max(inner_error) > highest_accuracy:
-                        highest_accuracy = np.max(inner_error)
+                    if np.max(temp_error) > highest_accuracy:
+                        highest_accuracy = np.max(temp_error)
                         selected_features.append(feature_df.columns[np.argmax(temp_error)])
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {all_feat}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {all_feat}", flush=True)
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}", flush=True)
                     
                     else:                                                                   
-                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..")
+                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..", flush=True)
+                        flag_FI = 1
                         break
                     
             # Backward Elimination
@@ -466,7 +471,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
             
             for q in range(len(selected_features)):
                 if verbose:
-                    print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}]")
+                    print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}]", flush=True)
                 temp_error = []
                 for feature in selected_features_:
                     # remove a feature from the selected features
@@ -526,9 +531,9 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
 
                     if verbose:
                         if task_type == 'regression':
-                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] <- Feature Removed: {feature} | Error Found: {np.mean(inner_error)}")
+                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] <- Feature Removed: {feature} | Error Found: {np.mean(inner_error)}", flush=True)
                         else:
-                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] <- Feature Removed: {feature} | Accuracy Found: {np.mean(inner_error)}")
+                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] <- Feature Removed: {feature} | Accuracy Found: {np.mean(inner_error)}", flush=True)
             
                 if task_type == 'regression':
                     if np.min(temp_error) < lowest_error:
@@ -537,31 +542,38 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {all_feat}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {all_feat}", flush=True)
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}", flush=True)
                     else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. Going to next iteration.")
+                        flag_BE = 1
+                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance.", flush=True)
                         break
                 else:
-                    if np.max(inner_error) > highest_accuracy:
-                        highest_accuracy = np.max(inner_error)
+                    if np.max(temp_error) > highest_accuracy:
+                        highest_accuracy = np.max(temp_error)
                         selected_features.remove(selected_features_[np.argmax(temp_error)]) 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {all_feat}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {all_feat}", flush=True)
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}")
+                                print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}", flush=True)
                     else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. Going to next iteration.")
+                        flag_BE = 1
+                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance.", flush=True)
                         break
+            
+            if flag_FI and flag_BE:
+                print(f"[Fold: {oF} | Iter: {i+1} | -- | Traversal: -] Since no addition or removal of any features improves performance, skipping next iterations.", flush=True)
+                break
+            
             if i == 0:
                 f_set_1 = copy.deepcopy(selected_features)
             else:
                 f_set = copy.deepcopy(selected_features)
                 if sorted(f_set_1) == sorted(f_set):
-                    print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] Selected features in this iteration did not change from the previous iteration. So quiting further iteration.")
+                    print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] Selected features in this iteration did not change from the previous iteration. So quiting further iterations.", flush=True)
                     break
                 else:
                     f_set_1 = f_set
