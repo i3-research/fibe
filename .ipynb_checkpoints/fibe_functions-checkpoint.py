@@ -33,7 +33,7 @@ import os
 from data_curation import data_curation, log_files_generator
 from sklearn.preprocessing import MinMaxScaler
 
-def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
+def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
     '''
     feature_df: is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
@@ -56,6 +56,8 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             For any random number of folds, N, the 'strict' threshold should be 0.6 X N and the 'loose' threshold should be 0.4 X N.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
+    tolerance: is the percentage of deviation in the error/accuracy threshold allowed. The default is '0.05', i.e., 5%.
+    maxFeatures: is the fractional number that indicate the number of best features to be selected of the total features. Default is 0.25, i.e., 25% of the total number of features.
     save_intermediate: if True, saves intermediate results to the specified directory. Default is False.
     output_dir: directory where intermediate results are saved if save_intermediate is True.
     inference_data_df: data for optional second inference cohort for prediction using the selected subset of features.
@@ -261,13 +263,23 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         vote = 0
     else:
         raise ValueError("Unknown voting strictness. Must be either 'strict' or 'loose.'")
+        
+    if tolerance == None:
+        tolerance = 0.05  # Default 
+    elif tolerance == 1:
+        raise ValueError("tolerance cannot be 1.")
+        
+    if maxFeatures == None:
+        maxFeatures = round(0.25*feature_df.shape[1])  # Default 
+    elif maxFeatures > feature_df.shape[1]:
+        raise ValueError("maxFeatures cannot be greater than the umber of features available.")
     
     if save_intermediate and output_dir is None:
         raise ValueError("Directory for saving intermediate results is not provided.")
 
 
     # training a model
-    selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, save_intermediate, output_dir, verbose)
+    selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
     
     # inference
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
@@ -342,7 +354,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     return final_features, actual_score, predicted_score, validationPerformance
         
         
-def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, save_intermediate, output_dir, verbose=False):
+def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
     max_iter = maxIter
     kf5 = KFold(n_splits = nFold, shuffle = False)
     
@@ -438,29 +450,31 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                             print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Accuracy Found: {np.mean(inner_error)}", flush=True)
 
                 if task_type == 'regression':
-                    if np.min(temp_error) < lowest_error:
-                        lowest_error = np.min(temp_error)
+                    if np.min(temp_error) < lowest_error*(1+tolerance) and len(selected_features) < maxFeatures:
+                        if np.min(temp_error) < lowest_error:
+                            lowest_error = np.min(temp_error)
                         selected_features.append(feature_df.columns[np.argmin(temp_error)]) 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {all_feat}", flush=True)
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Error ({metric}): {lowest_error:.4f} | Current Error ({metric}): {np.min(temp_error):.4f} | Selected Features: {all_feat}", flush=True)
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}", flush=True)
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Error ({metric}): {lowest_error:.4f} | Current Error ({metric}): {np.min(temp_error):.4f} | Selected Features: {selected_features}", flush=True)
                     else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..", flush=True)
+                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance beyond tolerance. Starting BE..", flush=True)
                         flag_FI = 1
                         break
                 else:
-                    if np.max(temp_error) > highest_accuracy:
-                        highest_accuracy = np.max(temp_error)
+                    if np.max(temp_error) > highest_accuracy*(1-tolerance) and len(selected_features) < maxFeatures:
+                        if np.max(temp_error) > highest_accuracy:
+                            highest_accuracy = np.max(temp_error)
                         selected_features.append(feature_df.columns[np.argmax(temp_error)])
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {all_feat}", flush=True)
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Prediction ({metric}): {highest_accuracy:.4f} | Currenct Prediction ({metric}): {np.max(temp_error):.4f} | Selected Features: {all_feat}", flush=True)
                             else:
-                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}", flush=True)
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Prediction ({metric}): {highest_accuracy:.4f} | Currenct Prediction ({metric}): {np.max(temp_error):.4f} | Selected Features: {selected_features}", flush=True)
                     
                     else:                                                                   
                         print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..", flush=True)
