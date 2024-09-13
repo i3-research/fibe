@@ -31,6 +31,7 @@ from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
 from sklearn.utils import resample
 import os
 from data_curation import data_curation, log_files_generator
+from sklearn.preprocessing import MinMaxScaler
 
 def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
@@ -465,15 +466,19 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..", flush=True)
                         flag_FI = 1
                         break
-                    
+            
+            if len(selected_features) == 1:
+                print(f"[Fold: {oF} | Iter: {i+1} | -- | Traversal: -] Since there is only one feature selected in FI, skipping BE and next iterations.", flush=True)
+                break 
+                
             # Backward Elimination
-            selected_features_ = copy.deepcopy(selected_features)
+            #selected_features_ = copy.deepcopy(selected_features)
             
             for q in range(len(selected_features)):
                 if verbose:
                     print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}]", flush=True)
                 temp_error = []
-                for feature in selected_features_:
+                for feature in selected_features:   #changed
                     # remove a feature from the selected features
                     temp_features = copy.deepcopy(selected_features)
                     if len(temp_features) == 1:
@@ -538,7 +543,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                 if task_type == 'regression':
                     if np.min(temp_error) < lowest_error:
                         lowest_error = np.min(temp_error)                                           
-                        selected_features.remove(selected_features_[np.argmin(temp_error)]) 
+                        selected_features.remove(selected_features[np.argmin(temp_error)])  #changed
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
@@ -552,7 +557,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                 else:
                     if np.max(temp_error) > highest_accuracy:
                         highest_accuracy = np.max(temp_error)
-                        selected_features.remove(selected_features_[np.argmax(temp_error)]) 
+                        selected_features.remove(selected_features[np.argmax(temp_error)])  #changed
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
