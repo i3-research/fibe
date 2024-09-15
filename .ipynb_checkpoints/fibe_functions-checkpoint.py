@@ -278,15 +278,20 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         raise ValueError("Directory for saving intermediate results is not provided.")
 
 
+    flag_union = 0
+    
     # training a model
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
     
     # inference
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         final_features = [element for element, count in selectedFeatures.items() if count >= vote]
-        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
-        if len(specialist_features) != 0:
-            final_features = list(specialist_features.columns) + final_features
+        if len(final_features) >= 2:
+            actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+            if len(specialist_features) != 0:
+                final_features = list(specialist_features.columns) + final_features
+        else:
+            flag_union = 1
     elif vote == 0:
         f_features = []
         ac_score = []
@@ -295,35 +300,55 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         
         # for strict choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
-        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
-        if len(specialist_features) != 0:
-            final_features = list(specialist_features.columns) + final_features
-        f_features = f_features + [final_features]
-        ac_score = ac_score + [actual_score]
-        pr_score = pr_score + [predicted_score]
-        val_per = val_per + [validationPerformance]
+        if len(final_features) >= 2:
+            actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+            if len(specialist_features) != 0:
+                final_features = list(specialist_features.columns) + final_features
+            f_features = f_features + [final_features]
+            ac_score = ac_score + [actual_score]
+            pr_score = pr_score + [predicted_score]
+            val_per = val_per + [validationPerformance]
+        else:
+            flag_union = 1
         
         # for loose choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
-        actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+        if len(final_features) >= 2:
+            actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+            if len(specialist_features) != 0:
+                final_features = list(specialist_features.columns) + final_features
+            f_features = f_features + [final_features]
+            ac_score = ac_score + [actual_score]
+            pr_score = pr_score + [predicted_score]
+            val_per = val_per + [validationPerformance]
+
+            final_features = f_features
+            actual_score = ac_score
+            predicted_score = pr_score
+            validationPerformance = val_per
+        else:
+            flag_union = 1
+            
+    if flag_union == 1:
+        union_list = list(set(selectedFeatures.items()))
+        actual_score, predicted_score, validationPerformance = inference(union_list, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
         if len(specialist_features) != 0:
-            final_features = list(specialist_features.columns) + final_features
-        f_features = f_features + [final_features]
-        ac_score = ac_score + [actual_score]
-        pr_score = pr_score + [predicted_score]
-        val_per = val_per + [validationPerformance]
+            final_features = list(specialist_features.columns) + union_list
+        else:
+            final_features = union_list
         
-        final_features = f_features
-        actual_score = ac_score
-        predicted_score = pr_score
-        validationPerformance = val_per
-    
     # inference on additional data
     if inference_data_df is not None and inference_score_df is not None:
+        flag_union = 0
         if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
             final_features = [element for element, count in selectedFeatures.items() if count >= vote]
-            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
-        
+            if len(final_features) >= 2:
+                actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
+                if len(specialist_features) != 0:
+                    final_features = list(specialist_features.columns) + final_features
+            else:
+                flag_union = 1
+                
         elif vote == 0:
             ac_score_add = []
             pr_score_add = []
@@ -331,22 +356,40 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             
             # for strict choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
-            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
-            ac_score_add = ac_score_add + [actual_score_add]
-            pr_score_add = pr_score_add + [predicted_score_add]
-            val_per_add = val_per_add + [validationPerformance_add]
+            if len(final_features) >= 2:
+                actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
+                ac_score_add = ac_score_add + [actual_score_add]
+                pr_score_add = pr_score_add + [predicted_score_add]
+                val_per_add = val_per_add + [validationPerformance_add]
+            else:
+                flag_union = 1
             
             # for loose choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
-            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
-            ac_score_add = ac_score_add + [actual_score_add]
-            pr_score_add = pr_score_add + [predicted_score_add]
-            val_per_add = val_per_add + [validationPerformance_add]
-            
-            actual_score_add = ac_score_add
-            predicted_score_add = pr_score_add
-            validationPerformance_add = val_per_add
+            if len(final_features) >= 2:
+                actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
+                ac_score_add = ac_score_add + [actual_score_add]
+                pr_score_add = pr_score_add + [predicted_score_add]
+                val_per_add = val_per_add + [validationPerformance_add]
 
+                actual_score_add = ac_score_add
+                predicted_score_add = pr_score_add
+                validationPerformance_add = val_per_add
+            else:
+                flag_union = 1
+
+        actual_score = actual_score + [actual_score_add]  
+        predicted_score = predicted_score + [predicted_score_add]
+        validationPerformance = validationPerformance + [validationPerformance_add]
+        
+        if flag_union == 1:
+            union_list = list(set(selectedFeatures.items()))
+            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(union_list, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)
+            if len(specialist_features) != 0:
+                final_features = list(specialist_features.columns) + union_list
+            else:
+                final_features = union_list
+                
         actual_score = actual_score + [actual_score_add]  
         predicted_score = predicted_score + [predicted_score_add]
         validationPerformance = validationPerformance + [validationPerformance_add]
