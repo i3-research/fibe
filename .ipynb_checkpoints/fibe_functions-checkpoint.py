@@ -33,7 +33,7 @@ import os
 from data_curation import data_curation, log_files_generator
 from sklearn.preprocessing import MinMaxScaler
 
-def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
+def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
     '''
     feature_df: is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
@@ -44,6 +44,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     columns_names: contain the names of the features. The algorithm returns the names of the selected features from this list. 
             If not available, then the algorithm returns the column indexes of selected features. 
     task_type: either 'regression' or 'classification.' The default is 'regression.'
+    probability: if True, probability values (for the first class) that leads to binary classifications is returned. This option only works when the 'task_type=regression.'
     balance: In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
     model_name: For the 'regression' task, choose from 'linearSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', 
             and 'consensus' (consensus using 'linearSVR', 'gaussianSVR', and 'RegressionForest'). The default is 'linearSVR'. For 'classification' task, 
@@ -65,6 +66,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     verbose: generates text for intermediate loss and selected feature list during iteration. The default is 'True'.
 
     The outputs are:
+    subjectList: is the list for subjects used in inference. Each subject/patient is assigned a name as 'subXX' and according to this list, other outputs are organized in the subsequent generated lists.
     selectedFeatures: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features. For 'voting_strictness' of 'both', 
             'selectedFeatures' contains two sets of output as [[selected features for 'strict'], [selected feature for 'loose']].
     actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has a repetition of values 3 times, to correspond to 
@@ -72,11 +74,11 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             'save_intermediate' is set 'True', 'actualScore[-1]' contains an additional list of actual score values of the inference data.
     predictedScore: is the list containing predicted scores. If 'model_name' is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation 
             are generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision-making. For 'voting_strictness' of 'both', 'predictedScore' contains two sets of 
-            output as [[predicted scores for 'strict'], [predicted score for 'loose']]. If the argument 'save_intermediate' is set 'True', 'predictedScore[-1]' contains an additional list 
-            of predicted score values for the inference data.
+            output as [[predicted scores for 'strict'], [predicted score for 'loose']]. If the argument 'probability' is set 'True' and 'task_type' is 'cassification', then predictedScore contains 
+            an additional list of prediction probability for class 1 score values for the inference data. The structure is then 
+            [[[predicted scores for 'strict'], ['predicted probabilities for 'strict']], [[predicted score for 'loose'],[predicted probabilities for 'loose']]
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
-            two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']]. If the argument 'save_intermediate' is set 'True', 'validationPerformance[-1]' 
-            contains an value for estimated error/accuracy metric for the inference data.
+            two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']]. 
     '''
 
     
@@ -183,6 +185,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     # Assigning a task type if None
     if task_type == None:
         task_type = 'regression'
+        
+    if task_type == 'regression' and probability == True:
+        raise ValueError("Probability values cannot be generated for regression tasks.")
     
     # Checking preconditions for balancing imbalanced data   
     if balance == True and task_type == 'regression':
@@ -287,7 +292,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         final_features = [element for element, count in selectedFeatures.items() if count >= vote]
         if len(final_features) >= 2:
-            actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+            subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
         else:
@@ -297,41 +302,45 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         ac_score = []
         pr_score = []
         val_per = []
+        sub_list = []
         
         # for strict choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
         if len(final_features) >= 2:
-            actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+            subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
             f_features = f_features + [final_features]
             ac_score = ac_score + [actual_score]
             pr_score = pr_score + [predicted_score]
             val_per = val_per + [validationPerformance]
+            sub_list = sub_list + [subjectList]
         else:
             flag_union = 1
         
         # for loose choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
         if len(final_features) >= 2:
-            actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+            subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
             f_features = f_features + [final_features]
             ac_score = ac_score + [actual_score]
             pr_score = pr_score + [predicted_score]
             val_per = val_per + [validationPerformance]
+            sub_list = sub_list + [subjectList]
 
             final_features = f_features
             actual_score = ac_score
             predicted_score = pr_score
             validationPerformance = val_per
+            subjectList = sub_list
         else:
             flag_union = 1
             
     if flag_union == 1:
         union_list = list(set(selectedFeatures.items()))
-        actual_score, predicted_score, validationPerformance = inference(union_list, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type)   # Added task_type
+        subjectList, actual_score, predicted_score, validationPerformance = inference(union_list, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + union_list
         else:
@@ -343,7 +352,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
             final_features = [element for element, count in selectedFeatures.items() if count >= vote]
             if len(final_features) >= 2:
-                actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
+                subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)    # Added task_type
                 if len(specialist_features) != 0:
                     final_features = list(specialist_features.columns) + final_features
             else:
@@ -353,28 +362,32 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             ac_score_add = []
             pr_score_add = []
             val_per_add = []
+            sub_list_add = []
             
             # for strict choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
             if len(final_features) >= 2:
-                actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
+                subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)    # Added task_type
                 ac_score_add = ac_score_add + [actual_score_add]
                 pr_score_add = pr_score_add + [predicted_score_add]
                 val_per_add = val_per_add + [validationPerformance_add]
+                sub_list_add = sub_list_add + [subjectList_add]
             else:
                 flag_union = 1
             
             # for loose choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
             if len(final_features) >= 2:
-                actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)    # Added task_type
+                subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)    # Added task_type
                 ac_score_add = ac_score_add + [actual_score_add]
                 pr_score_add = pr_score_add + [predicted_score_add]
                 val_per_add = val_per_add + [validationPerformance_add]
+                sub_list_add = sub_list_add + [subjectList_add]
 
                 actual_score_add = ac_score_add
                 predicted_score_add = pr_score_add
                 validationPerformance_add = val_per_add
+                subjectList_add = sub_list_add
             else:
                 flag_union = 1
 
@@ -384,7 +397,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         
         if flag_union == 1:
             union_list = list(set(selectedFeatures.items()))
-            actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(union_list, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type)
+            subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(union_list, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + union_list
             else:
@@ -393,8 +406,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         actual_score = actual_score + [actual_score_add]  
         predicted_score = predicted_score + [predicted_score_add]
         validationPerformance = validationPerformance + [validationPerformance_add]
+        subjectList = subjectList + [subjectList_add]
 
-    return final_features, actual_score, predicted_score, validationPerformance
+    return final_features, subjectList, actual_score, predicted_score, validationPerformance
         
         
 def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
@@ -664,36 +678,44 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
     feature_counts = Counter(frequency_of_features_selected_all_fold)
     return feature_counts
 
-
-def inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type):    # Added task_type
+def inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability):    
     kf5 = KFold(n_splits = nFold, shuffle = False)
     valPerformanceByFold = []
     actual_score = []
     predicted_score = []
+    subjects = []
+    predicted_probs = []
+    
+    # Generating subject IDs (sub1, sub2, etc.)
+    subject_ids = ['sub' + str(i+1) for i in range(len(feature_df))]
     
     for infer_fold in kf5.split(feature_df):
         train_val_df = feature_df.iloc[infer_fold[0]]
         test_df = feature_df.iloc[infer_fold[1]]
         
+        # Getting the subject IDs for the test set
+        test_subjects = [subject_ids[i] for i in infer_fold[1]]
+        
         if len(specialist_features) != 0:
             train_specialist = specialist_features.iloc[infer_fold[0]]
             test_specialist = specialist_features.iloc[infer_fold[1]]
         
-        # training
+        # Training
         df_s = score_df.iloc[infer_fold[0]]
         df_f = train_val_df[final_features]
         
-        # validation
+        # Validation
         df_val_s = score_df.iloc[infer_fold[1]]
         df_val_f = test_df[final_features]
         
-        
         if len(specialist_features) != 0:
-                df_f = pd.concat([train_specialist, df_f], axis=1)
-                df_val_f = pd.concat([test_specialist, df_val_f], axis=1)
+            df_f = pd.concat([train_specialist, df_f], axis=1)
+            df_val_f = pd.concat([test_specialist, df_val_f], axis=1)
         
         if model_name == 'consensus':
             predictions = []
+            probabilities = []
+            
             for one_model in model:
                 model_ = model[one_model]
                 
@@ -701,43 +723,68 @@ def inference(final_features, nFold, feature_df, score_df, specialist_features, 
                 model_.fit(df_f, df_s.values.ravel())
                 y_pred = model_.predict(df_val_f)
                 predictions.append(y_pred)
+                
+                if probability == True:
+                    y_pred_proba = model_.predict_proba(df_val_f)
+                    prob_class_1 = y_pred_proba[:, 1] # probability of class 1
+                    probabilities.append(prob_class_1)
+                    
+            if probability == True:
+                # Averaging the probabilities from the 3 models
+                consensus_prob = [(a+b+c)/3 for a,b,c in zip(probabilities[0], probabilities[1], probabilities[2])]
+                predicted_probs.append(consensus_prob)
             
             if task_type == 'regression':
-                consensus_pred = [(a+b+c)/3 for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
+                consensus_pred = [(a+b+c)/3 for a,b,c in zip(predictions[0], predictions[1], predictions[2])]
             elif task_type == 'classification':
                 def majority_vote(a,b,c):
                     return 1 if a+b+c>1 else 0
-                consensus_pred = [majority_vote(a,b,c) for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
-            
+                consensus_pred = [majority_vote(a,b,c) for a,b,c in zip(predictions[0], predictions[1], predictions[2])]
                    
-            # Calculate the performance for the validation set
+            # Calculating the performance for the validation set
             performance = loss_estimation(metric, df_val_s, consensus_pred)
                 
-            # save the actual and prediction scores
+            # Saving the actual, predicted scores, and subject IDs
             actual_score.append(df_val_s.values.ravel().tolist())
             predicted_score.append(consensus_pred)
+            subjects.append(test_subjects)
             
             valPerformanceByFold.append(performance)
         else:
-            # Fit data to a model with the selected features and predict
+            # Fitting data to a model with the selected features and predict
             model.fit(df_f, df_s.values.ravel())
             y_pred = model.predict(df_val_f)
+            
+            if probability == True and task_type == 'classification':
+                y_pred_proba = model.predict_proba(df_val_f)
+                prob_class_1 = y_pred_proba[:, 1]  # probability of class 1
+                predicted_probs.append(prob_class_1)
                 
-            # Calculate the mean absolute error for the validation set
+            # Calculating the performance for the validation set
             valPerformanceByFold.append(loss_estimation(metric, df_val_s, y_pred))
             actual_score.append(df_val_s.values.ravel().tolist())
             predicted_score.append(y_pred.tolist())
+            subjects.append(test_subjects)
         
-        actual = [item for sublist in actual_score for item in sublist]
-        predicted = [round(item, 2) for sublist in predicted_score for item in sublist]
-            
-    return actual, predicted, valPerformanceByFold
+    # Flattening the lists of actual scores, predicted scores, and subject IDs
+    actual = [item for sublist in actual_score for item in sublist]
+    predicted = [round(item, 2) for sublist in predicted_score for item in sublist]
+    subjects = [item for sublist in subjects for item in sublist]
+    
+    if probability == True:
+        predicted_probs = [round(item, 2) for sublist in predicted_probs for item in sublist]
+        return subjects, actual, [predicted]+[predicted_probs], valPerformanceByFold
+    else:
+        return subjects, actual, predicted, valPerformanceByFold
 
-def inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type):    # Added task_type
+def inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability):
     valPerformanceByFold = []
     actual_score = []
     predicted_score = []
+    subjects = []
+    predicted_probs = []
     
+    # Preparing the validation features
     if len(specialist_features) != 0:
         df_val_f = pd.concat([specialist_features, feature_df[final_features]], axis=1)
     else:
@@ -749,15 +796,28 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
 
     inference_data_df2 = inference_data_df[all_column_names].copy()
 
+    # Extracting subject IDs (e.g., sub1, sub2, sub3,...)
+    inference_subjects = ["sub" + str(i + 1) for i in range(len(inference_data_df))]
+    
     if model_name == 'consensus':
         predictions = []
         for one_model in model:
             model_ = model[one_model]
             
             # Fit data to a model with the selected features and predict
-            model_.fit(df_f, df_s.values.ravel())
-            y_pred = model_.predict(df_val_f)
+            model_.fit(df_val_f, score_df.values.ravel())
+            y_pred = model_.predict(inference_data_df2)
             predictions.append(y_pred)
+            
+            if probability == True:
+                y_pred_proba = model_.predict_proba(inference_data_df2)
+                prob_class_1 = y_pred_proba[:, 1] # probability of class 1
+                probabilities.append(prob_class_1)
+        
+        if probability == True:
+            # Averaging the probabilities from the 3 models
+            consensus_prob = [(a+b+c)/3 for a,b,c in zip(probabilities[0], probabilities[1], probabilities[2])]
+            predicted_probs.append(consensus_prob)
         
         if task_type == 'regression':
             consensus_pred = [(a+b+c)/3 for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
@@ -766,29 +826,43 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
                 return 1 if a+b+c>1 else 0
             consensus_pred = [majority_vote(a,b,c) for a,b,c in zip(predictions[0],predictions[1],predictions[2])]
         
-               
         # Calculate the performance for the validation set
         performance = loss_estimation(metric, df_val_s, consensus_pred)
             
-        # save the actual and prediction scores
+        # Save the actual and prediction scores
         actual_score.append(df_val_s.values.ravel().tolist())
         predicted_score.append(consensus_pred)
+        subjects.append(inference_subjects)
         
         valPerformanceByFold.append(performance)
     else:
         # Fit data to a model with the selected features and predict
         model.fit(df_val_f, score_df.values.ravel())
         y_pred = model.predict(inference_data_df2)
+        
+        if probability == True and task_type == 'classification':
+            y_pred_proba = model.predict_proba(inference_data_df2)
+            prob_class_1 = y_pred_proba[:, 1]  # probability of class 1
+            predicted_probs.append(prob_class_1)
             
         # Calculate the mean absolute error for the validation set
         valPerformanceByFold.append(loss_estimation(metric, inference_score_df, y_pred))
+        
         actual_score.append(inference_score_df.values.ravel().tolist())
         predicted_score.append(y_pred.tolist())
+        subjects.append(inference_subjects)
+        
+    # Flatten the lists of actual scores, predicted scores, and subject IDs
+    actual = [item for sublist in actual_score for item in sublist]
+    predicted = [round(item, 2) for sublist in predicted_score for item in sublist]
+    subjects = [item for sublist in subjects for item in sublist]
 
-        actual = [item for sublist in actual_score for item in sublist]
-        predicted = [round(item, 2) for sublist in predicted_score for item in sublist]
-            
-    return actual, predicted, valPerformanceByFold
+    if probability == True:
+        predicted_probs = [round(item, 2) for sublist in predicted_probs for item in sublist]
+        return subjects, actual, [predicted]+[predicted_probs], valPerformanceByFold
+    else:
+        return subjects, actual, predicted, valPerformanceByFold
+
         
 def loss_estimation(metric, true_values, predicted_values):
     true_values = np.array(true_values)
