@@ -413,7 +413,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         
 def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
     max_iter = maxIter
-    kf5 = KFold(n_splits = nFold, shuffle = False)
+    kf5 = KFold(n_splits = nFold, shuffle=True, random_state=42)
     
     frequency_of_features_selected_all_fold = []
 
@@ -679,7 +679,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
     return feature_counts
 
 def inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability):    
-    kf5 = KFold(n_splits = nFold, shuffle = False)
+    kf5 = KFold(n_splits = nFold, shuffle=True, random_state=42)
     valPerformanceByFold = []
     actual_score = []
     predicted_score = []
