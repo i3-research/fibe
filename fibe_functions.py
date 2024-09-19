@@ -217,15 +217,13 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             raise ValueError("Unknown model name. You might have misspelled the name or chose a model that does classification by mistake.")
     elif task_type == 'classification':
         if model_name == None or model_name == 'linearSVC':
+            model = SVC(kernel = 'linear', C=1.0)  # Default
             if probability == True:
-                model = SVC(kernel = 'linear', C=1.0, probability=True) 
-            else:
-                model = SVC(kernel = 'linear', C=1.0)  # Default
+                model_infer = SVC(kernel = 'linear', C=1.0, probability=True) 
         elif model_name == 'gaussianSVC':
+            model = SVC(kernel = 'rbf', C=1.0, gamma='scale')
             if probability == True:
-                model = SVC(kernel = 'rbf', C=1.0, gamma='scale', probability=True)
-            else:
-                model = SVC(kernel = 'rbf', C=1.0, gamma='scale')
+                model_infer = SVC(kernel = 'rbf', C=1.0, gamma='scale', probability=True)
         elif model_name == 'RandomForest':
             model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
@@ -233,18 +231,17 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         elif model_name == 'AdaBoostSVC':
             model = AdaBoostClassifier(estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
-            if probability == True:
-                model = { 
-                "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
-                "Gaussian SVC" : SVC(kernel = 'rbf', C=1.0, gamma='scale', probability=True), 
-                "Linear SVC" : SVC(kernel = 'linear', C=1.0, probability=True)
-                }
-            else:
-                model = { 
+            model = { 
                 "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
                 "Gaussian SVC" : SVC(kernel = 'rbf', C=1.0, gamma='scale'), 
                 "Linear SVC" : SVC(kernel = 'linear', C=1.0)
                 }
+            if probability == True:
+                model_infer = { 
+                "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
+                "Gaussian SVC" : SVC(kernel = 'rbf', C=1.0, gamma='scale', probability=True), 
+                "Linear SVC" : SVC(kernel = 'linear', C=1.0, probability=True)
+                }     
         else:
             raise ValueError("Unknown model name. You might have misspelled the name or chose a model that does regression by mistake.")
     else:
@@ -302,6 +299,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
     
     # inference
+    if probability == True:
+        model = model_infer
+        
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         final_features = [element for element, count in selectedFeatures.items() if count >= vote]
         if len(final_features) >= 2:
