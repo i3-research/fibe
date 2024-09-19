@@ -217,9 +217,15 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             raise ValueError("Unknown model name. You might have misspelled the name or chose a model that does classification by mistake.")
     elif task_type == 'classification':
         if model_name == None or model_name == 'linearSVC':
-            model = SVC(kernel = 'linear', C=1.0)  # Default
+            if probability == True:
+                model = SVC(kernel = 'linear', C=1.0, probability=True) 
+            else:
+                model = SVC(kernel = 'linear', C=1.0)  # Default
         elif model_name == 'gaussianSVC':
-            model = SVC(kernel = 'rbf', C=1.0, gamma='scale')
+            if probability == True:
+                model = SVC(kernel = 'rbf', C=1.0, gamma='scale', probability=True)
+            else:
+                model = SVC(kernel = 'rbf', C=1.0, gamma='scale')
         elif model_name == 'RandomForest':
             model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
