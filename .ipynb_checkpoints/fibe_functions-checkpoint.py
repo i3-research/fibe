@@ -233,11 +233,18 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         elif model_name == 'AdaBoostSVC':
             model = AdaBoostClassifier(estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
-            model = { 
-            "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
-            "Gaussian SVC" : SVC(kernel = 'rbf', C=1.0, gamma='scale'), 
-            "Linear SVC" : SVC(kernel = 'linear', C=1.0)
-            }
+            if probability == True:
+                model = { 
+                "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
+                "Gaussian SVC" : SVC(kernel = 'rbf', C=1.0, gamma='scale', probability=True), 
+                "Linear SVC" : SVC(kernel = 'linear', C=1.0, probability=True)
+                }
+            else:
+                model = { 
+                "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
+                "Gaussian SVC" : SVC(kernel = 'rbf', C=1.0, gamma='scale'), 
+                "Linear SVC" : SVC(kernel = 'linear', C=1.0)
+                }
         else:
             raise ValueError("Unknown model name. You might have misspelled the name or chose a model that does regression by mistake.")
     else:
