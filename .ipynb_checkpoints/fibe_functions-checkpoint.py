@@ -44,7 +44,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     columns_names: contain the names of the features. The algorithm returns the names of the selected features from this list. 
             If not available, then the algorithm returns the column indexes of selected features. 
     task_type: either 'regression' or 'classification.' The default is 'regression.'
-    probability: if True, probability values (for the first class) that leads to binary classifications is returned. This option only works when the 'task_type=regression.'
+    probability: if True, probability values (for the class 1) that leads to binary classifications is returned. This option only works when the 'task_type=regression.'
     balance: In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
     model_name: For the 'regression' task, choose from 'linearSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', 
             and 'consensus' (consensus using 'linearSVR', 'gaussianSVR', and 'RegressionForest'). The default is 'linearSVR'. For 'classification' task, 
@@ -352,7 +352,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             flag_union = 1
             
     if flag_union == 1:
-        union_list = list(set(selectedFeatures.items()))
+        union_list = list(selectedFeatures.keys())
         subjectList, actual_score, predicted_score, validationPerformance = inference(union_list, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + union_list
@@ -409,7 +409,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         validationPerformance = validationPerformance + [validationPerformance_add]
         
         if flag_union == 1:
-            union_list = list(set(selectedFeatures.items()))
+            union_list = list(selectedFeatures.keys())
             subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(union_list, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + union_list
@@ -443,6 +443,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
         oF += 1
             
         selected_features = []
+        best_features = []
         
         if task_type == 'regression':
             lowest_error = float('inf')
@@ -521,9 +522,12 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
 
                 if task_type == 'regression':
                     if np.min(temp_error) < lowest_error*(1+tolerance) and len(selected_features) < maxFeatures:
+                        selected_features.append(feature_df.columns[np.argmin(temp_error)])
+                        
                         if np.min(temp_error) < lowest_error:
                             lowest_error = np.min(temp_error)
-                        selected_features.append(feature_df.columns[np.argmin(temp_error)]) 
+                            best_features = copy.deepcopy(selected_features)
+                             
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
@@ -531,14 +535,22 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                             else:
                                 print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Error ({metric}): {lowest_error:.4f} | Current Error ({metric}): {np.min(temp_error):.4f} | Selected Features: {selected_features}", flush=True)
                     else:
-                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance beyond tolerance. Starting BE..", flush=True)
+                        if verbose:
+                            if len(specialist_features) != 0:
+                                all_feat = list(specialist_features.columns) + best_features
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance beyond tolerance | Best Features: {all_feat} | Starting BE..", flush=True)
+                            else:
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance beyond tolerance | Best Features: {best_features} | Starting BE..", flush=True)
                         flag_FI = 1
                         break
                 else:
                     if np.max(temp_error) > highest_accuracy*(1-tolerance) and len(selected_features) < maxFeatures:
+                        selected_features.append(feature_df.columns[np.argmax(temp_error)])
+                        
                         if np.max(temp_error) > highest_accuracy:
                             highest_accuracy = np.max(temp_error)
-                        selected_features.append(feature_df.columns[np.argmax(temp_error)])
+                            best_features = copy.deepcopy(selected_features)
+                            
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + selected_features
@@ -546,13 +558,20 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                             else:
                                 print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Prediction ({metric}): {highest_accuracy:.4f} | Currenct Prediction ({metric}): {np.max(temp_error):.4f} | Selected Features: {selected_features}", flush=True)
                     
-                    else:                                                                   
-                        print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance. Starting BE..", flush=True)
+                    else: 
+                        if verbose:
+                            if len(specialist_features) != 0:
+                                all_feat = list(specialist_features.columns) + best_features
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance beyond tolerance | Best Features: {all_feat} | Starting BE..", flush=True)
+                            else:
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] No additional feature improves performance beyond tolerance | Best Features: {best_features} | Starting BE..", flush=True)
                         flag_FI = 1
                         break
             
+            selected_features = copy.deepcopy(best_features)
             if len(selected_features) == 1:
-                print(f"[Fold: {oF} | Iter: {i+1} | -- | Traversal: -] Since there is only one feature selected in FI, skipping BE and next iterations.", flush=True)
+                if verbose:
+                    print(f"[Fold: {oF} | Iter: {i+1} | -- | Traversal: -] Since there is only one feature selected in FI, skipping BE and next iterations.", flush=True)
                 break 
                 
             # Backward Elimination
@@ -636,7 +655,8 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                                 print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {lowest_error:.4f} | Selected Features: {selected_features}", flush=True)
                     else:
                         flag_BE = 1
-                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance.", flush=True)
+                        if verbose:
+                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. | Selected Features: {selected_features}", flush=True)
                         break
                 else:
                     if np.max(temp_error) > highest_accuracy:
@@ -650,11 +670,13 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                                 print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] - Traversal over all features finished | {metric}: {highest_accuracy:.4f} | Selected Features: {selected_features}", flush=True)
                     else:
                         flag_BE = 1
-                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance.", flush=True)
+                        if verbose:
+                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. | Selected Features: {selected_features}", flush=True)
                         break
             
             if flag_FI and flag_BE:
-                print(f"[Fold: {oF} | Iter: {i+1} | -- | Traversal: -] Since no addition or removal of any features improves performance, skipping next iterations.", flush=True)
+                if verbose:
+                    print(f"[Fold: {oF} | Iter: {i+1} | -- | Traversal: -] Since no addition or removal of any features improves performance, skipping next iterations.", flush=True)
                 break
             
             if i == 0:
@@ -662,7 +684,8 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
             else:
                 f_set = copy.deepcopy(selected_features)
                 if sorted(f_set_1) == sorted(f_set):
-                    print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] Selected features in this iteration did not change from the previous iteration. So quiting further iterations.", flush=True)
+                    if verbose:
+                        print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] Selected features in this iteration did not change from the previous iteration. So quiting further iterations.", flush=True)
                     break
                 else:
                     f_set_1 = f_set
