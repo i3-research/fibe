@@ -17,6 +17,9 @@
 # FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 # DEALINGS IN THE SOFTWARE.
+# 
+#
+# Last Updated: 09/22/2024 at 0006H, By Mohammmad Arafat Hussain.
 
 
 import pandas as pd
@@ -32,6 +35,7 @@ from sklearn.utils import resample
 import os
 from data_curation import data_curation, log_files_generator
 from sklearn.preprocessing import MinMaxScaler
+from datetime import datetime
 
 def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
@@ -80,7 +84,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
             two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']]. 
     '''
-
+    
+    start_time = datetime.now()
+    print("Code started running at:", start_time.strftime("%Y-%m-%d %H:%M:%S"))
     
     # Data Curation : Added by Ankush Kesri
     if data_cleaning == True:
@@ -286,8 +292,10 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         
     if maxFeatures == None:
         maxFeatures = round(0.25*feature_df.shape[1])  # Default 
-    elif maxFeatures > feature_df.shape[1]:
-        raise ValueError("maxFeatures cannot be greater than the umber of features available.")
+    elif maxFeatures > 1:
+        raise ValueError("maxFeatures cannot be greater than 1, i.e., the number of features available.")
+    else:
+        maxFeatures = round(maxFeatures*feature_df.shape[1])
     
     if save_intermediate and output_dir is None:
         raise ValueError("Directory for saving intermediate results is not provided.")
@@ -431,6 +439,11 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
     frequency_of_features_selected_all_fold = []
 
     oF = 0
+    
+    if verbose:
+        print(f"Total Number of Features to Traverse in each fold: {len(feature_df.columns)}")
+        print(f"Maximum number of Features allowed under tolerance, if not best: {maxFeatures}\n")
+        
     for outer_fold in kf5.split(feature_df):
         flag_FI = 0
         flag_BE = 0
@@ -453,6 +466,8 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
             error_to_fill = highest_accuracy #newadd
         
         for i in range(max_iter):
+            noFeat_tolerance = 0
+            exit_flag = 0
             for q in range(len(feature_df.columns)): 
                 if verbose:
                     print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}]", flush=True)
@@ -521,12 +536,21 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                             print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -> Feature Added: {feature} | Accuracy Found: {np.mean(inner_error)}", flush=True)
 
                 if task_type == 'regression':
-                    if np.min(temp_error) < lowest_error*(1+tolerance) and len(selected_features) < maxFeatures:
+                    if np.min(temp_error) <= lowest_error*(1+tolerance):
                         selected_features.append(feature_df.columns[np.argmin(temp_error)])
                         
+                        if np.min(temp_error) > lowest_error:
+                            noFeat_tolerance += 1
+                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -- {noFeat_tolerance} feature(s) allowed under tolerance, which is not better than the last best.")
+                            if noFeat_tolerance == maxFeatures:
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -- Number of allowed features under tolerance is met. Exiting from further FI | Best Features remain: {best_features}")
+                                exit_flag = 1
+                                break
+                            
                         if np.min(temp_error) < lowest_error:
                             lowest_error = np.min(temp_error)
                             best_features = copy.deepcopy(selected_features)
+                            noFeat_tolerance = 0
                              
                         if verbose:
                             if len(specialist_features) != 0:
@@ -534,7 +558,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                                 print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Error ({metric}): {lowest_error:.4f} | Current Error ({metric}): {np.min(temp_error):.4f} | Selected Features: {all_feat}", flush=True)
                             else:
                                 print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Error ({metric}): {lowest_error:.4f} | Current Error ({metric}): {np.min(temp_error):.4f} | Selected Features: {selected_features}", flush=True)
-                    else:
+                    elif np.min(temp_error) > lowest_error*(1+tolerance) or exit_flag == 1:
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + best_features
@@ -544,12 +568,21 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                         flag_FI = 1
                         break
                 else:
-                    if np.max(temp_error) > highest_accuracy*(1-tolerance) and len(selected_features) < maxFeatures:
+                    if np.max(temp_error) >= highest_accuracy*(1-tolerance) and exit_flag == 0:
                         selected_features.append(feature_df.columns[np.argmax(temp_error)])
+                        
+                        if np.max(temp_error) < highest_accuracy:
+                            noFeat_tolerance += 1
+                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -- {noFeat_tolerance} feature(s) allowed under tolerance, which is not better than the last best.")
+                            if noFeat_tolerance == maxFeatures:
+                                print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] -- Number of allowed features under tolerance is met. Exiting from further FI | Best Features remain: {best_features}")
+                                exit_flag = 1
+                                break
                         
                         if np.max(temp_error) > highest_accuracy:
                             highest_accuracy = np.max(temp_error)
                             best_features = copy.deepcopy(selected_features)
+                            noFeat_tolerance = 0
                             
                         if verbose:
                             if len(specialist_features) != 0:
@@ -558,7 +591,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                             else:
                                 print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] - Traversal over all features finished | Best Prediction ({metric}): {highest_accuracy:.4f} | Currenct Prediction ({metric}): {np.max(temp_error):.4f} | Selected Features: {selected_features}", flush=True)
                     
-                    else: 
+                    elif np.max(temp_error) < highest_accuracy*(1-tolerance) or exit_flag == 1: 
                         if verbose:
                             if len(specialist_features) != 0:
                                 all_feat = list(specialist_features.columns) + best_features
@@ -656,7 +689,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                     else:
                         flag_BE = 1
                         if verbose:
-                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. | Selected Features: {selected_features}", flush=True)
+                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance | Selected Features: {selected_features}", flush=True)
                         break
                 else:
                     if np.max(temp_error) > highest_accuracy:
@@ -671,7 +704,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                     else:
                         flag_BE = 1
                         if verbose:
-                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance. | Selected Features: {selected_features}", flush=True)
+                            print(f"[Fold: {oF} | Iter: {i+1} | BE | Traversal: {q+1}] No removal of additional feature improves performance | Selected Features: {selected_features}", flush=True)
                         break
             
             if flag_FI and flag_BE:
