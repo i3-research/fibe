@@ -19,7 +19,7 @@
 # DEALINGS IN THE SOFTWARE.
 # 
 #
-# Last Updated: 09/25/2024 at 1415H EST, By Mohammmad Arafat Hussain.
+# Last Updated: 09/25/2024 at 1435H EST, By Mohammmad Arafat Hussain.
 
 
 import pandas as pd
@@ -332,7 +332,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         # for strict choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
         if len(final_features) >= (2/3)*floored_mean:
-            print(f"Number of features (w/o specialist features) after strict voting: {len(final_features)}, which is greater or equal 2/3 of the average number of features over 5-folds. So keeping 'strict' features.\n")
+            print(f"Number of features (w/o specialist features) after strict voting: {len(final_features)}, which is greater or equal 2/3 of the average number of features (i.e., {floored_mean}) over {nFold}-folds. So keeping 'strict' features.\n")
             subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
@@ -340,7 +340,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
             # union
             if len(final_features) <= 2 and floored_mean > 4:
-                print(f"Number of features (w/o specialist features) after loose voting: {len(final_features)}, which is less or equal 2, while the average number of features over 5-folds is greater than 4. So keeping 'union' of features.\n")
+                print(f"Number of features (w/o specialist features) after loose voting: {len(final_features)}, which is less or equal 2, while the average number of features (i.e., {floored_mean}) over {nFold}-folds is greater than 4. So keeping 'union' of features.\n")
                 union_list = list(selectedFeatures.keys())
                 subjectList, actual_score, predicted_score, validationPerformance = inference(union_list, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
                 if len(specialist_features) != 0:
