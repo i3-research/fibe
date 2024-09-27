@@ -19,7 +19,7 @@
 # DEALINGS IN THE SOFTWARE.
 # 
 #
-# Last Updated: 09/25/2024 at 1435H EST, By Mohammmad Arafat Hussain.
+# Last Updated: 09/26/2024 at 2215H EST, By Mohammmad Arafat Hussain.
 
 
 import pandas as pd
@@ -64,7 +64,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             is greater than 4, then the system does union of features.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
-    tolerance: is the percentage of deviation in the error/accuracy threshold allowed. The default is '0.01', i.e., 1%.
+    tolerance: is the percentage of deviation in the error/accuracy threshold allowed. The default is '0.05', i.e., 5%.
     maxFeatures: is the fractional number that indicate the number of best features to be selected of the total features. Default is 0.25, i.e., 25% of the total number of features.
     save_intermediate: if True, saves intermediate results to the specified directory. Default is False.
     output_dir: directory where intermediate results are saved if save_intermediate is True.
@@ -269,7 +269,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             raise ValueError(f'{metric} is not supported for classification task. Choose from Accuracy, binaryROC, or F1-score.')
     
     if voting_strictness == None:
-        voting_strictness = 'strict'  # Default 
+        voting_strictness = 'weighted'  # Default 
         
     if nFold == None:
         nFold = 5   # Default 
@@ -283,13 +283,17 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         vote = round(0.6 * nFold)
     elif voting_strictness == 'loose':
         vote = round(0.4 * nFold)
-    elif voting_strictness == 'both':
+    elif voting_strictness == 'conditional':
         vote = 0
+    elif voting_strictness == 'weighted':
+        vote = 1
+    elif voting_strictness == 'union':
+        vote = 2
     else:
         raise ValueError("Unknown voting strictness. Must be either 'strict' or 'loose.'")
         
     if tolerance == None:
-        tolerance = 0.01  # Default 
+        tolerance = 0.05  # Default 
     elif tolerance == 1:
         raise ValueError("tolerance cannot be 1.")
         
@@ -305,9 +309,11 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
 
 
     flag_union = 0
+    shuffle_flag = True
+    random_seed = 99
     
     # training a model
-    selectedFeatures = train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
+    selectedFeatures = train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
     
     print(f"\n============================== Inference =====================================\n")
     
@@ -316,46 +322,99 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         model = model_infer
         
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
-        print(f"\nVoting strictness is selected: {voting_strictness}\n")
+        X = [item for sublist in selectedFeatures for item in sublist]
+        selectedFeatures = Counter(X)
+        if verbose:
+            print(f"\nVoting strictness is selected: {voting_strictness}\n")
         final_features = [element for element, count in selectedFeatures.items() if count >= vote]
-        subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+        subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+    
+    elif vote == 1:
+        max_length = max(len(sublist) for sublist in selectedFeatures)
+        dict_list = []
+        for sublist in selectedFeatures:
+            length = len(sublist)
+            dict_list.append({sublist[i]: max_length - i for i in range(length)})
+
+        if verbose:
+            print(f"Features with assigned ranks in each {nFold}-folds: {dict_list}\n")
+
+        final_dict = {}
+        for d in dict_list:
+            for key, value in d.items():
+                if key in final_dict:
+                    final_dict[key] += value
+                else:
+                    final_dict[key] = value
+
+        if verbose:
+            print(f"Final feature set over {nFold}-folds with weighted ranks: {final_dict}\n")
+
+        threshold = max_length
+        final_features = [key for key, value in final_dict.items() if value >= threshold]
+
+        if verbose:
+            print(f"Features selected that satisfied the threshold of {threshold}: {final_features}\n")
+            
+        subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+    
+    elif vote == 2:
+        final_features = list(set([item for sublist in selectedFeatures for item in sublist]))
+        if verbose:
+            print(f"Following features appeared in the union: {final_features}\n")
+        subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     
     elif vote == 0:
-        print(f"\nVoting strictness is selected: {voting_strictness}")
+        X = [item for sublist in selectedFeatures for item in sublist]
+        selectedFeatures = Counter(X)
+        
+        if verbose:
+            print(f"\nVoting strictness is selected: {voting_strictness}")
         total_sum = sum(selectedFeatures.values())
         mean_value = total_sum / nFold
         floored_mean = math.floor(mean_value)
-        print(f"Average number of features over 5-folds: {floored_mean}")
+        if verbose:
+            print(f"Average number of features over 5-folds: {floored_mean}")
         
         # for strict choice
         final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
         if len(final_features) >= (2/3)*floored_mean:
-            print(f"Number of features (w/o specialist features) after strict voting: {len(final_features)}, which is greater or equal 2/3 of the average number of features (i.e., {floored_mean}) over {nFold}-folds. So keeping 'strict' features.\n")
-            subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+            if verbose:
+                print(f"Number of features (w/o specialist features) after strict voting: {len(final_features)}, which is greater or equal 2/3 of the average number of features (i.e., {floored_mean}) over {nFold}-folds. So keeping 'strict' features.\n")
+            subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
         else:
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.4 * nFold)]
             # union
             if len(final_features) <= 2 and floored_mean > 4:
-                print(f"Number of features (w/o specialist features) after loose voting: {len(final_features)}, which is less or equal 2, while the average number of features (i.e., {floored_mean}) over {nFold}-folds is greater than 4. So keeping 'union' of features.\n")
+                if verbose:
+                    print(f"Number of features (w/o specialist features) after loose voting: {len(final_features)}, which is less or equal 2, while the average number of features (i.e., {floored_mean}) over {nFold}-folds is greater than 4. So keeping 'union' of features.\n")
                 union_list = list(selectedFeatures.keys())
-                subjectList, actual_score, predicted_score, validationPerformance = inference(union_list, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+                subjectList, actual_score, predicted_score, validationPerformance = inference(union_list, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
                 if len(specialist_features) != 0:
                     final_features = list(specialist_features.columns) + union_list
                 else:
                     final_features = union_list
             else: 
                 # for loose choice
-                print(f"Number of features (w/o specialist features) after loose voting: {len(final_features)}, which is greater than 2. So keeping 'loose' features.\n")
-                subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+                if verbose:
+                    print(f"Number of features (w/o specialist features) after loose voting: {len(final_features)}, which is greater than 2. So keeping 'loose' features.\n")
+                subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
                 if len(specialist_features) != 0:
                     final_features = list(specialist_features.columns) + final_features
         
     # inference on additional data
     if inference_data_df is not None and inference_score_df is not None:
+        X = [item for sublist in selectedFeatures for item in sublist]
+        selectedFeatures = Counter(X)
+        
         if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
             final_features = [element for element, count in selectedFeatures.items() if count >= vote]
             subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)    # Added task_type
@@ -384,9 +443,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     return final_features, subjectList, actual_score, predicted_score, validationPerformance
         
         
-def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
+def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
     max_iter = maxIter
-    kf5 = KFold(n_splits = nFold, shuffle=True, random_state=42)
+    kf5 = KFold(n_splits = nFold, shuffle=shuffle_flag, random_state=random_seed)
     
     frequency_of_features_selected_all_fold = []
 
@@ -401,6 +460,7 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
         print("\n=================================================================================\n")
         flag_FI = 0
         flag_BE = 0
+        
         
         train_val_df = feature_df.iloc[outer_fold[0]]
         train_val_score_df = score_df.iloc[outer_fold[0]]
@@ -696,13 +756,17 @@ def train(maxIter, nFold, feature_df, score_df, specialist_features, task_type, 
                     raise PermissionError(f"You do not have write permission to directory '{output_dir}'")
 
         # saving features selected across all outer folds
-        frequency_of_features_selected_all_fold = frequency_of_features_selected_all_fold + selected_features
-        
-    feature_counts = Counter(frequency_of_features_selected_all_fold)
-    return feature_counts
+        if oF == 1:
+            frequency_of_features_selected_all_fold = [selected_features]
+        else:
+            frequency_of_features_selected_all_fold = frequency_of_features_selected_all_fold + [selected_features]
+        #print(frequency_of_features_selected_all_fold)
+    #feature_counts = Counter(frequency_of_features_selected_all_fold)
+    #return feature_counts
+    return frequency_of_features_selected_all_fold
 
-def inference(final_features, nFold, feature_df, score_df, specialist_features, balance, model_name, model, metric, task_type, probability):    
-    kf5 = KFold(n_splits = nFold, shuffle=True, random_state=42)
+def inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability):    
+    kf5 = KFold(n_splits = nFold, shuffle=shuffle_flag, random_state=random_seed)
     valPerformanceByFold = []
     actual_score = []
     predicted_score = []
