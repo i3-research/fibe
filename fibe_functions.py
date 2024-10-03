@@ -310,7 +310,10 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
 
     flag_union = 0
     shuffle_flag = True
-    random_seed = 99
+    if shuffle_flag == False:
+        random_seed = None
+    else:
+        random_seed = 99  #default
     
     # training a model
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
