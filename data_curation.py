@@ -180,19 +180,26 @@ def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 =
 
   #return feature_df
   #################( C: Filling Minor missing data )############################
+  def var_type(column):
+    unique_vals = column.nunique()
+    if pd.api.types.is_numeric_dtype(column): #checks for numeric dtype
+      if unique_vals > 8: #arbitrary threshold
+        # Keeping it low, imputing categorical variable (integer) with median won't harm but continuos with random value instead of median might!
+        return 'continuous'
+      else:
+        return 'categorical'
+    else:
+      return 'categorical'
+
   for col in feature_df.columns:
 
-    unique_vals = len(feature_df[col].value_counts())
-    if unique_vals >= 0.3*len(feature_df) and unique_vals < 0.9*len(feature_df):
-      # If unique values are more than 50% of total values, the feature is more likely to be continuous
-      # with 0.9 upper threshold and int/float check, making sure uniqueID feature doesn't qualify for median value imputation
-      if feature_df[col].dropna().apply(lambda x: isinstance(x, (int,float))).any():
-        median_val = feature_df[col].median()
-        feature_df[col] = feature_df[col].fillna(median_val)
-        imputation_log.append([col, 'continuous', median_val])
-      continue
+    feature_type = var_type(feature_df[col])
+    if feature_type == 'continuous':
+      median_val = feature_df[col].median()
+      feature_df[col] = feature_df[col].fillna(median_val)
+      imputation_log.append([col, 'continuous', median_val])
 
-    else:
+    if feature_type == 'categorical':
       # Remaining categories should be strings
       unique_cats = feature_df[col].dropna().unique()
       chosen_cat = random.choice(unique_cats)
