@@ -37,6 +37,9 @@ from data_curation import data_curation, log_files_generator
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime
 import math
+import sklearn
+
+sk_version = int(sklearn.__version__.split('.')[0])
 
 def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
@@ -213,9 +216,15 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         elif model_name == 'RegressionForest':
             model = RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
-            model = AdaBoostRegressor(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostRegressor(base_estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostRegressor(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVR':
-            model = AdaBoostRegressor(estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostRegressor(base_estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostRegressor(estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
             model = { 
             "Regression Forest" : RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5),
@@ -236,9 +245,15 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         elif model_name == 'RandomForest':
             model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
-            model = AdaBoostClassifier(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostClassifier(base_estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostClassifier(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVC':
-            model = AdaBoostClassifier(estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostClassifier(base_estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostClassifier(estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
             model = { 
                 "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),

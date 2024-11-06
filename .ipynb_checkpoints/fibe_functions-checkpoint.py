@@ -37,6 +37,9 @@ from data_curation import data_curation, log_files_generator
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime
 import math
+import sklearn
+
+sk_version = int(sklearn.__version__.split('.')[0])
 
 def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
@@ -213,9 +216,15 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         elif model_name == 'RegressionForest':
             model = RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
-            model = AdaBoostRegressor(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostRegressor(base_estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostRegressor(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVR':
-            model = AdaBoostRegressor(estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostRegressor(base_estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostRegressor(estimator=SVR(), n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
             model = { 
             "Regression Forest" : RandomForestRegressor(n_estimators = 100, random_state=42, max_depth=5),
@@ -236,9 +245,15 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         elif model_name == 'RandomForest':
             model = RandomForestClassifier(n_estimators=100, random_state=42, max_depth=5)
         elif model_name == 'AdaBoostDT':
-            model = AdaBoostClassifier(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostClassifier(base_estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostClassifier(estimator=None, n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'AdaBoostSVC':
-            model = AdaBoostClassifier(estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
+            if sk_version == 0:
+                model = AdaBoostClassifier(base_estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
+            else:
+                model = AdaBoostClassifier(estimator=SVC(), algorithm='SAMME', n_estimators=50, learning_rate=1.0, random_state=42)
         elif model_name == 'consensus':
             model = { 
                 "Random Forest" : RandomForestClassifier(n_estimators = 100, random_state=42, max_depth=5),
@@ -284,11 +299,11 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     elif voting_strictness == 'loose':
         vote = round(0.4 * nFold)
     elif voting_strictness == 'conditional':
-        vote = 0
+        vote = 101
     elif voting_strictness == 'weighted':
-        vote = 1
+        vote = 102
     elif voting_strictness == 'union':
-        vote = 2
+        vote = 103
     else:
         raise ValueError("Unknown voting strictness. Must be either 'strict' or 'loose.'")
         
@@ -310,7 +325,10 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
 
     flag_union = 0
     shuffle_flag = True
-    random_seed = 99
+    if shuffle_flag == False:
+        random_seed = None
+    else:
+        random_seed = 99  #default
     
     # training a model
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
@@ -331,8 +349,16 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     
-    elif vote == 1:
-        max_length = max(len(sublist) for sublist in selectedFeatures)
+    elif vote == 102: #weighted #default
+        # making sure that features from strict voting are always included
+        X = [item for sublist in selectedFeatures for item in sublist]
+        Feature_counts = Counter(X)
+        Feature_counts_sorted = sorted(Feature_counts.items(), key=lambda x: x[1], reverse=True)   #Keeping the order of features (descending) based on their frequency
+        
+        strict_voting_features = [item[0] for item in Feature_counts_sorted if item[1] >=3]
+        print(f"Features selected atleast 3 times that will be included : {strict_voting_features}")
+        
+        max_length = max(len(sublist) for sublist in selectedFeatures)  # max_length = Km
         dict_list = []
         for sublist in selectedFeatures:
             length = len(sublist)
@@ -352,25 +378,38 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         if verbose:
             print(f"Final feature set over {nFold}-folds with weighted ranks: {final_dict}\n")
 
-        threshold = max_length
-        final_features = [key for key, value in final_dict.items() if value >= threshold]
+        threshold = max_length      #Km
+        final_dict_sorted = sorted(final_dict.items(), key=lambda x: x[1], reverse=True)
+        
+        weighted_features_with_rank = [item for item in final_dict_sorted if item[1] >= threshold]
+        print(f"Features selected after thresholding) the weighted features, threshold = {threshold} : {weighted_features_with_rank}")
+        weighted_features = [item[0] for item in final_dict_sorted if item[1] >= threshold]
+
+
+        for _ in strict_voting_features:
+            if _ not in weighted_features:
+                weighted_features.append(_)
+        final_features = copy.deepcopy(weighted_features)
 
         if verbose:
-            print(f"Features selected that satisfied the threshold of {threshold}: {final_features}\n")
+            print(f"Features selected that satisfied the threshold of {threshold} including features selected at least 3 times: {final_features}\n")
             
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     
-    elif vote == 2:
-        final_features = list(set([item for sublist in selectedFeatures for item in sublist]))
+    elif vote == 103:  #union
+        X = [item for sublist in selectedFeatures for item in sublist]
+        Features_counts = Counter(X)
+        selectedFeatures = sorted(Features_counts.items(), key=lambda x: x[1], reverse=True)   #Keeping the order of features based on their frequency
+        final_features = [item[0] for item in selectedFeatures]
         if verbose:
             print(f"Following features appeared in the union: {final_features}\n")
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     
-    elif vote == 0:
+    elif vote == 101:
         X = [item for sublist in selectedFeatures for item in sublist]
         selectedFeatures = Counter(X)
         
@@ -421,7 +460,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
                 
-        elif vote == 0:
+        elif vote == 101: #conditional
             # for strict choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
             if len(final_features) >= (2/3)*floored_mean:
