@@ -1,0 +1,44 @@
+—---------------------------------—---------------------------------—---------------------------------
+Weighted majority voting: to make the finally selected subset of features stable and accurate
+—---------------------------------—---------------------------------—---------------------------------
+- consensus by weighted majority voting (i.e., weighted total rank score from 5 folds) steps 
+- get the maximum number of selected features (Km) in five folds (K1, K2, K3, K4, K5);
+- assign a score to each feature in each fold's selected feature set staring from Km, then Km-1, Km-2, … for each feature in the union of selected features in 5 folds, calculate its total score from 5 folds;
+- keep a feature if its total score >= Km
+
+
+Example:
+---------
+f1: ['seizures_NICU'7, 'chorioamnionitis'6, 'hypothermia'5]
+f2: ['ten'7, 'antepartum_hemorrhage'6]
+f3: ['ten'7, 'hypothermia'6, 'lowest_ph'5, 'antepartum_hemorrhage'4, 'chorioamnionitis'3]
+f4: ['seizures_NICU'7, 'one'6, 'TPN_NICU'5, 'ETT_NICU'4, 'GA_weeks'3, 'race'2]
+f5: ['ETT_NICU'7, 'antepartum_hemorrhage'6, 'chorioamnionitis'5, 'hypothermia'4, 'BW_g'3, 'lowest_ph'2, 'pre-eclampsia'1]
+
+strict MV: ['chorioamnionitis', 'hypothermia', 'antepartum_hemorrhage'] -> 0.497
+
+step a. Km=7
+step b, assign score
+step c. calculate total score
+
+
+antepartum_hemorrhage 16
+hypothermia 15
+ten 14
+seizures_NICU 14
+chorioamnionitis 14
+ETT_NICU 11
+lowest_ph 7
+
+
+one 6
+TPN_NICU 5
+GA_weeks 3
+BW_g 3
+race 2
+pre-eclampsia 1
+
+
+
+step d. threshold the total score by Km=7 ==>  
+[antepartum_hemorrhage, hypothermia, ten, seizures_NICU, chorioamnionitis, ETT_NICU, lowest_ph]

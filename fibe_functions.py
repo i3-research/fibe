@@ -333,6 +333,8 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     # training a model
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
     
+    # selectedFeatures = [[features in fold-1], [features in fold-2],...., [features in fold-n]]
+    
     print(f"\n============================== Inference =====================================\n")
     
     # inference
