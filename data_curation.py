@@ -202,7 +202,12 @@ def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 =
     if feature_type == 'categorical':
       # Remaining categories should be strings
       unique_cats = feature_df[col].dropna().unique()
-      chosen_cat = random.choice(unique_cats)
+      if len(unique_cats) == 2:
+        major_cat = feature_df[col].mode()[0] #Filling Nan by majority class in binary column
+        feature_df[col] = feature_df[col].fillna(major_cat)
+        imputation_log.append([col, 'categorical', major_cat])
+        continue
+      chosen_cat = random.choice(unique_cats) #Otherwise random category
       feature_df[col] = feature_df[col].fillna(chosen_cat)
       imputation_log.append([col, 'categorical', chosen_cat])
 
