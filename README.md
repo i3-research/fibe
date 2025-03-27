@@ -4,6 +4,20 @@ This algorithm performs a feature selection for both regression and classificati
 ## GitHub Repo
 https://github.com/i3-research/fibe
 
+## Install
+
+You can install this package with:
+
+```
+pip install -e git+https://github.com/i3-research/fibe.git#egg=fibe
+```
+
+or add the following into your `pyproject.toml` dependencies:
+
+```
+fibe @ git+https://github.com/i3-research/fibe.git
+```
+
 ## How to Run the Algorithm
 To run this algorithm, the following function is needed to call with appropriate parameter selection:
 
@@ -45,7 +59,7 @@ Figure: Schematic diagram of our FIBE algorithm.
 An example Python file ``main.py`` is given. It includes example code to run one classification and one regression problem. Further, it includes examples of how to run the algorithm with predefined fixed features as well as data balancing options.
 
 ## Required Packages
-Please refer to the ``requirements.txt`` file.
+Please refer to the ``pyproject.toml`` file.
 
 ## Suggestions and Comments
 - Prof. Yangming Ou, PhD (Yangming.Ou@childrens.harvard.edu)
