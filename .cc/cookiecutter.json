@@ -1,0 +1,45 @@
+{
+  "pkg": "",
+  "module": "",
+
+  "project": "",
+
+  "pkg_name": "",
+  "project_name": "",
+  "project_name_with_dash": "",
+  "include_pkg": "",
+
+  "package_dir": "",
+  "include_package_dir": "",
+  "test_package_dir": "",
+
+  "PKG": "",
+  "MODULE": "",
+  "PROJECT": "",
+  "PKG_NAME": "",
+  "PROJECT_NAME": "",
+  "INCLUDE_PKG": "",
+  "PACKAGE_DIR": "",
+  "INCLUDE_PACKAGE_DIR": "",
+  "TEST_PACKAGE_DIR": "",
+
+  "Pkg": "",
+  "Module": "",
+  "Project": "",
+  "PkgName": "",
+  "ProjectName": "",
+  "IncludePkg": "",
+  "PackageDir": "",
+  "IncludePackageDir": "",
+  "TestPackageDir": "",
+
+  "pkgCamel": "",
+  "moduleCamel": "",
+  "projectCamel": "",
+  "pkgName": "",
+  "projectName": "",
+  "includePkg": "",
+  "packageDir": "",
+  "includePackageDir": "",
+  "testPackageDir": ""
+}

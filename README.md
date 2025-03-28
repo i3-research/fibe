@@ -4,10 +4,28 @@ This algorithm performs a feature selection for both regression and classificati
 ## GitHub Repo
 https://github.com/i3-research/fibe
 
+## Install
+
+You can install this package with:
+
+```
+pip install -e git+https://github.com/i3-research/fibe.git#egg=fibe
+```
+
+or add the following into your `pyproject.toml` dependencies:
+
+```
+fibe @ git+https://github.com/i3-research/fibe.git
+```
+
 ## How to Run the Algorithm
 To run this algorithm, the following function is needed to call with appropriate parameter selection:
 
-``selectedFeatures, actualScore, predictedScore, validationPerformance = fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True)``
+```python
+from fibe import fibe
+
+selectedFeatures, actualScore, predictedScore, validationPerformance = fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True, model_kwargs=None)
+```
 
 Here, 
 - ``feature_df`` is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
@@ -30,6 +48,7 @@ Here,
 - ``inference_data_df`` Data for optional second inference cohort for prediction using the selected subset of features.
 - ``inference_score_df`` Scores for optional second inference cohort for prediction using the selected subset of features.
 - ``verbose`` generates text for intermediate loss and selected feature list during iteration. The default is ``True``.
+- ``model_kwargs`` If not ``None``, keyword-based argments for the model. Please refer to code to see the settings for consense. The default is ``None``.
 
 The outputs are:
 - ``selectedFeatures`` is the list of features if ``columns_names`` was not ``None``. Otherwise column indexes of the selected features. For ``voting_strictness`` of 'both', ``selectedFeatures`` contains two sets of output as ``[[selected features for 'strict'], [selected feature for 'loose']]``. 
@@ -45,7 +64,7 @@ Figure: Schematic diagram of our FIBE algorithm.
 An example Python file ``main.py`` is given. It includes example code to run one classification and one regression problem. Further, it includes examples of how to run the algorithm with predefined fixed features as well as data balancing options.
 
 ## Required Packages
-Please refer to the ``requirements.txt`` file.
+Please refer to the ``pyproject.toml`` file.
 
 ## Suggestions and Comments
 - Prof. Yangming Ou, PhD (Yangming.Ou@childrens.harvard.edu)

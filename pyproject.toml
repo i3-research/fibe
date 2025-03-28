@@ -1,0 +1,57 @@
+[build-system]
+requires = [
+    'setuptools',
+]
+build-backend = 'setuptools.build_meta'
+
+[project]
+name = 'fibe'
+version = '0.0.1'
+dependencies = [
+    'pandas==2.2.3',
+    'numpy==2.2.4',
+    'scikit-learn==1.6.1',
+]
+authors = [
+    {name = 'Mohammad Arafat Hussain', email = 'mohammad.hussain@childrens.harvard.edu'},
+    {name = 'Ankush Kesri', email = 'ankush.kesri@childrens.harvard.edu'},
+    {name = 'Sheng He', email = 'sheng.he@childrens.harvard.edu'},
+    {name = 'Yangming Ou', email = 'yangming.ou@childrens.harvard.edu'},
+]
+description = 'Implementation of Forward Inclusion Backward Exclusion'
+readme = 'README.md'
+license = {file = 'LICENSE'}
+keywords = [
+]
+classifiers = [
+    'Programming Language :: Python :: 3',
+    'Operating System :: OS Independent',
+]
+
+[project.urls]
+# Homepage      = ''
+# Documentation = ''
+# Repository    = ''
+# 'Bug Tracker' = ''
+# Changelog = ''
+
+[project.scripts]
+
+[tool.setuptools.packages.find]
+exclude = [
+    'tests*',
+]
+[tool.flake8]
+max-line-length = 100
+extend-ignore = [
+    # See https://github.com/PyCQA/pycodestyle/issues/373
+    'E203',
+]
+exclude = [
+    '.git',
+    '__pycache__',
+    '.cc',
+    '.github',
+    '__init__.py',
+    '.venv',
+]
