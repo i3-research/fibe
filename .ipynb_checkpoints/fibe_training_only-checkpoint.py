@@ -19,7 +19,7 @@
 # DEALINGS IN THE SOFTWARE.
 # 
 #
-# Last Updated: 04/02/2025 at 1900H EST, By Mohammmad Arafat Hussain.
+# Last Updated: 11/05/2024 at 2015H EST, By Mohammmad Arafat Hussain.
 
 
 import pandas as pd
@@ -41,7 +41,7 @@ import sklearn
 
 sk_version = int(sklearn.__version__.split('.')[0])
 
-def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
+def fibe_training_only(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, fold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True):
     
     '''
     feature_df: is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
@@ -68,7 +68,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
     tolerance: is the percentage of deviation in the error/accuracy threshold allowed. The default is '0.05', i.e., 5%.
-    maxFeatures: is the number that indicate the number of features to be allowed under tolerance. Default is '3'.
+    maxFeatures: is the fractional number that indicate the number of best features to be selected of the total features. Default is 0.25, i.e., 25% of the total number of features.
     save_intermediate: if True, saves intermediate results to the specified directory. Default is False.
     output_dir: directory where intermediate results are saved if save_intermediate is True.
     inference_data_df: data for optional second inference cohort for prediction using the selected subset of features.
@@ -289,6 +289,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     if nFold == None:
         nFold = 5   # Default 
         
+    if fold == None:
+        fold = 1   # Default
+        
     if maxIter == None:
         maxIter = 3  # Default 
     elif maxIter < 1:
@@ -313,9 +316,11 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         raise ValueError("tolerance cannot be 1.")
         
     if maxFeatures == None:
-        maxFeatures = 3  # Default  previously --> round(0.25*feature_df.shape[1])
-    elif maxFeatures > feature_df.shape[1]:
-        raise ValueError("maxFeatures cannot be greater than the total number of features available.")
+        maxFeatures = round(0.25*feature_df.shape[1])  # Default 
+    elif maxFeatures > 1:
+        raise ValueError("maxFeatures cannot be greater than 1, i.e., the number of features available.")
+    else:
+        maxFeatures = round(maxFeatures*feature_df.shape[1])
     
     if save_intermediate and output_dir is None:
         raise ValueError("Directory for saving intermediate results is not provided.")
@@ -329,10 +334,13 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         random_seed = 99  #default
     
     # training a model
-    selectedFeatures = train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
+    selectedFeatures = train(maxIter, nFold, fold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
     
-    # selectedFeatures = [[features in fold-1], [features in fold-2],...., [features in fold-n]]
+    # selectedFeatures = [features in fold]
     
+    return selectedFeatures
+    
+    '''
     print(f"\n============================== Inference =====================================\n")
     
     # inference
@@ -397,27 +405,6 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
-            
-            
-        #--------- Estimation of Weights in Percentage -------
-        
-        data = final_dict
-        data_final = final_features
-        
-        # Filter data using data_final
-        filtered_data = {key: value for key, value in data.items() if key in data_final}
-
-        # Create DataFrame
-        dfw = pd.DataFrame(filtered_data.items(), columns=["Feature", "Weight"])
-
-        # Calculate relative weights as a percentage
-        total_weight = dfw["Weight"].sum()
-        dfw["Relative Weight (%)"] = (dfw["Weight"] / total_weight) * 100
-
-        # Sort by relative weight for the plot
-        dfw = dfw.sort_values("Relative Weight (%)", ascending=False)
-        
-        #-----------------------------------------------------
     
     elif vote == 103:  #union
         X = [item for sublist in selectedFeatures for item in sublist]
@@ -500,14 +487,12 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         predicted_score = predicted_score + [predicted_score_add]
         validationPerformance = validationPerformance + [validationPerformance_add]
 
-    return final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw
+    return final_features, subjectList, actual_score, predicted_score, validationPerformance
+    '''    
         
-        
-def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
+def train(maxIter, nFold, fold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
     max_iter = maxIter
     kf5 = KFold(n_splits = nFold, shuffle=shuffle_flag, random_state=random_seed)
-    
-    frequency_of_features_selected_all_fold = []
 
     oF = 0
     
@@ -517,6 +502,14 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
         print(f"Maximum number of Features allowed under tolerance, if not best: {maxFeatures}\n")
         
     for outer_fold in kf5.split(feature_df):
+        oF += 1
+        
+        if oF != fold:
+            print(f'Fold {oF} is ommitted')
+            continue
+        
+        print(f'Fold {oF} is executing')
+            
         print("\n=================================================================================\n")
         flag_FI = 0
         flag_BE = 0
@@ -526,8 +519,6 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
         train_val_score_df = score_df.iloc[outer_fold[0]]
         if len(specialist_features) != 0:
             train_specialist = specialist_features.iloc[outer_fold[0]]
-        
-        oF += 1
             
         selected_features = []
         best_features = []
@@ -815,16 +806,9 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
                 else:
                     raise PermissionError(f"You do not have write permission to directory '{output_dir}'")
 
-        # saving features selected across all outer folds
-        if oF == 1:
-            frequency_of_features_selected_all_fold = [selected_features]
-        else:
-            frequency_of_features_selected_all_fold = frequency_of_features_selected_all_fold + [selected_features]
-        #print(frequency_of_features_selected_all_fold)
-    #feature_counts = Counter(frequency_of_features_selected_all_fold)
-    #return feature_counts
-    return frequency_of_features_selected_all_fold
+    return selected_features
 
+'''
 def inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability):    
     kf5 = KFold(n_splits = nFold, shuffle=shuffle_flag, random_state=random_seed)
     valPerformanceByFold = []
@@ -1009,7 +993,7 @@ def inference_additional(final_features, feature_df, score_df, specialist_featur
         return subjects, actual, [predicted]+[predicted_probs], valPerformanceByFold
     else:
         return subjects, actual, predicted, valPerformanceByFold
-
+'''
         
 def loss_estimation(metric, true_values, predicted_values):
     true_values = np.array(true_values)

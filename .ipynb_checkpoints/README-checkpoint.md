@@ -24,7 +24,7 @@ Here,
 - ``nFold`` Number of folds in cross-validation. Preferred and default is ``5``.
 - ``maxIter`` is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is ``3``.
 - ``tolerance`` is the percentage of deviation in the error/accuracy threshold allowed. The default is ``0.05``, i.e., 5%.
-- ``maxFeatures:`` is the fractional number that indicate the number of best features to be selected of the total features. Default is ``0.25``, i.e., 25% of the total number of features.
+- ``maxFeatures:`` is the number that indicate the number of features to be allowed under tolerance. Default is ``3.``
 - ``save_intermediate`` If True, saves intermediate results to the specified directory. Default is False.
 - ``output_dir`` Directory where intermediate results are saved if save_intermediate is True.
 - ``inference_data_df`` Data for optional second inference cohort for prediction using the selected subset of features.

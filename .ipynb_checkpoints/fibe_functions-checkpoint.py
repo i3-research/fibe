@@ -19,7 +19,7 @@
 # DEALINGS IN THE SOFTWARE.
 # 
 #
-# Last Updated: 09/26/2024 at 2215H EST, By Mohammmad Arafat Hussain.
+# Last Updated: 04/02/2025 at 1900H EST, By Mohammmad Arafat Hussain.
 
 
 import pandas as pd
@@ -68,7 +68,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
     tolerance: is the percentage of deviation in the error/accuracy threshold allowed. The default is '0.05', i.e., 5%.
-    maxFeatures: is the fractional number that indicate the number of best features to be selected of the total features. Default is 0.25, i.e., 25% of the total number of features.
+    maxFeatures: is the number that indicate the number of features to be allowed under tolerance. Default is '3'.
     save_intermediate: if True, saves intermediate results to the specified directory. Default is False.
     output_dir: directory where intermediate results are saved if save_intermediate is True.
     inference_data_df: data for optional second inference cohort for prediction using the selected subset of features.
@@ -313,11 +313,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         raise ValueError("tolerance cannot be 1.")
         
     if maxFeatures == None:
-        maxFeatures = round(0.25*feature_df.shape[1])  # Default 
-    elif maxFeatures > 1:
-        raise ValueError("maxFeatures cannot be greater than 1, i.e., the number of features available.")
-    else:
-        maxFeatures = round(maxFeatures*feature_df.shape[1])
+        maxFeatures = 3  # Default  previously --> round(0.25*feature_df.shape[1])
+    elif maxFeatures > feature_df.shape[1]:
+        raise ValueError("maxFeatures cannot be greater than the total number of features available.")
     
     if save_intermediate and output_dir is None:
         raise ValueError("Directory for saving intermediate results is not provided.")
@@ -332,6 +330,8 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     
     # training a model
     selectedFeatures = train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
+    
+    # selectedFeatures = [[features in fold-1], [features in fold-2],...., [features in fold-n]]
     
     print(f"\n============================== Inference =====================================\n")
     
@@ -397,6 +397,27 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
+            
+            
+        #--------- Estimation of Weights in Percentage -------
+        
+        data = final_dict
+        data_final = final_features
+        
+        # Filter data using data_final
+        filtered_data = {key: value for key, value in data.items() if key in data_final}
+
+        # Create DataFrame
+        dfw = pd.DataFrame(filtered_data.items(), columns=["Feature", "Weight"])
+
+        # Calculate relative weights as a percentage
+        total_weight = dfw["Weight"].sum()
+        dfw["Relative Weight (%)"] = (dfw["Weight"] / total_weight) * 100
+
+        # Sort by relative weight for the plot
+        dfw = dfw.sort_values("Relative Weight (%)", ascending=False)
+        
+        #-----------------------------------------------------
     
     elif vote == 103:  #union
         X = [item for sublist in selectedFeatures for item in sublist]
@@ -479,7 +500,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         predicted_score = predicted_score + [predicted_score_add]
         validationPerformance = validationPerformance + [validationPerformance_add]
 
-    return final_features, subjectList, actual_score, predicted_score, validationPerformance
+    return final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw
         
         
 def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose=False):
