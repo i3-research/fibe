@@ -187,7 +187,7 @@ def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 =
 	    unique_vals = column.nunique()
 	    if pd.api.types.is_numeric_dtype(column):
 	        return 'continuous' if unique_vals > 8 else 'categorical'
-					# Keeping it low, imputing categorical variable (integer) with median won't harm but continuos with random value instead of median might!
+					# 8 = arbitrary value, Keeping it low, imputing categorical variable (integer) with median won't harm but continuos with random value instead of median might!
 	    else:
 	        return 'categorical'
 	
