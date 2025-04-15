@@ -42,6 +42,9 @@ def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 =
   imputation_log:   A list of lists for track of imputed category or median value e.g. [col, 'categorical', chosen_cat] in order
 
   '''
+
+  random.seed(42) #(for reprodicibility in part C)  
+    
   # For log files
   drop_log = {} # For A: Exclusion criteria
   mapping_list = [] # For B: Recoding multi-class features
@@ -178,38 +181,38 @@ def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 =
         continue
 
 
-  #return feature_df
   #################( C: Filling Minor missing data )############################
-  def var_type(column):
-    unique_vals = column.nunique()
-    if pd.api.types.is_numeric_dtype(column): #checks for numeric dtype
-      if unique_vals > 8: #arbitrary threshold
-        # Keeping it low, imputing categorical variable (integer) with median won't harm but continuos with random value instead of median might!
-        return 'continuous'
-      else:
-        return 'categorical'
-    else:
-      return 'categorical'
 
-  for col in feature_df.columns:
-
-    feature_type = var_type(feature_df[col])
-    if feature_type == 'continuous':
-      median_val = feature_df[col].median()
-      feature_df[col] = feature_df[col].fillna(median_val)
-      imputation_log.append([col, 'continuous', median_val])
-
-    if feature_type == 'categorical':
-      # Remaining categories should be strings
-      unique_cats = feature_df[col].dropna().unique()
-      if len(unique_cats) == 2:
-        major_cat = feature_df[col].mode()[0] #Filling Nan by majority class in binary column
-        feature_df[col] = feature_df[col].fillna(major_cat)
-        imputation_log.append([col, 'categorical', major_cat])
-        continue
-      chosen_cat = random.choice(unique_cats) #Otherwise random category
-      feature_df[col] = feature_df[col].fillna(chosen_cat)
-      imputation_log.append([col, 'categorical', chosen_cat])
+	def var_type(column):
+	    unique_vals = column.nunique()
+	    if pd.api.types.is_numeric_dtype(column):
+	        return 'continuous' if unique_vals > 8 else 'categorical'
+					# Keeping it low, imputing categorical variable (integer) with median won't harm but continuos with random value instead of median might!
+	    else:
+	        return 'categorical'
+	
+	for col in feature_df.columns:
+	    feature_type = var_type(feature_df[col])
+	    missing_before = feature_df[col].isnull().sum()
+	
+	    if feature_type == 'continuous':
+	        if missing_before > 0:
+	            median_val = feature_df[col].median()
+	            feature_df[col] = feature_df[col].fillna(median_val)
+	            imputation_log.append([col, 'continuous', median_val])
+	
+	    elif feature_type == 'categorical':
+	        unique_cats = feature_df[col].dropna().unique()
+	
+	        if missing_before > 0:
+	            if len(unique_cats) == 2:
+	                major_cat = feature_df[col].mode()[0]
+	                feature_df[col] = feature_df[col].fillna(major_cat)
+	                imputation_log.append([col, 'categorical-binary', major_cat])
+	            else:
+	                chosen_cat = random.choice(unique_cats)
+	                feature_df[col] = feature_df[col].fillna(chosen_cat)
+	                imputation_log.append([col, 'categorical', chosen_cat])
 
   return feature_df, drop_log, mapping_list, imputation_log
 
