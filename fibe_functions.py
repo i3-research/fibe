@@ -546,7 +546,7 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
                 if verbose:
                     print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}]", flush=True)
                 temp_error = []
-                for feature in feature_df.columns:
+                for idx_feature, feature in enumerate(feature_df.columns):
                     if feature in selected_features:
                         temp_error.append(error_to_fill)
                         continue
@@ -555,7 +555,10 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
                     temp_features = selected_features + [feature]
                     inner_error = []
 
+                    inner_fold_idx = 0
                     for inner_fold in kf5.split(train_val_df): 
+                        if verbose:
+                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] feature: {idx+1} inner-fold: {inner_fold_idx}", flush=True)
                         training = train_val_df.iloc[inner_fold[0]]
                         validation = train_val_df.iloc[inner_fold[1]]
 
@@ -600,6 +603,8 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
 
                             # Calculate the mean absolute error for the validation set
                             inner_error.append(loss_estimation(metric, df_val_score, y_pred))
+
+                        inner_fold_idx += 1
 
                     temp_error.append(np.mean(inner_error)) #newadd
 
