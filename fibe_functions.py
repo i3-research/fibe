@@ -33,7 +33,7 @@ from sklearn.svm import SVR, SVC
 from sklearn.ensemble import AdaBoostRegressor, AdaBoostClassifier
 from sklearn.utils import resample
 import os
-from data_curation import data_curation, log_files_generator
+from .data_curation import data_curation, log_files_generator
 from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime
 import math
@@ -558,7 +558,7 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
                     inner_fold_idx = 0
                     for inner_fold in kf5.split(train_val_df): 
                         if verbose:
-                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] feature: {idx+1} inner-fold: {inner_fold_idx}", flush=True)
+                            print(f"[Fold: {oF} | Iter: {i+1} | FI | Traversal: {q+1}] feature: {idx_feature+1} inner-fold: {inner_fold_idx}", flush=True)
                         training = train_val_df.iloc[inner_fold[0]]
                         validation = train_val_df.iloc[inner_fold[1]]
 
