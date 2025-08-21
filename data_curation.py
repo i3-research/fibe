@@ -74,7 +74,7 @@ def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 =
 
     # Step 1: Handling Missing Values
     # Step 1a: Replacing all unknown values with np.nan
-    if unknown_value in feature_df[col].values:
+    if feature_df[col].isin([unknown_value]).any(): # updated to remove elementwise comparison failed warning
       feature_df[col].replace([unknown_value], np.nan, inplace = True)
 
     # Step 1b: Counting nan values and dropping column if more than 40% data is missing
