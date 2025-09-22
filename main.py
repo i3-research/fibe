@@ -16,7 +16,7 @@ boston = datasets.load_boston()
 data = pd.DataFrame(boston.data, columns=boston.feature_names)
 target = pd.Series(boston.target)
 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, verbose=True)
+final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw = fibe(data, target, verbose=True)
 print(final_features, validationPerformance)
 
 # With predefined fixed features 
@@ -25,7 +25,7 @@ data = pd.DataFrame(boston.data, columns=boston.feature_names)
 fixed = ['CRIM', 'ZN']
 target = pd.Series(boston.target)
 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, fixed_features=fixed, voting_strictness='both', verbose=True)
+final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw = fibe(data, target, fixed_features=fixed, voting_strictness='both', verbose=True)
 print(final_features, validationPerformance)
 
 
@@ -41,7 +41,7 @@ cancer = datasets.load_breast_cancer()
 data = pd.DataFrame(cancer.data, columns=cancer.feature_names)
 target = pd.Series(cancer.target)
 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, task_type='classification', verbose=True)
+final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw = fibe(data, target, task_type='classification', verbose=True)
 print(final_features, actual_score, predicted_score, validationPerformance)
 
 # With predefined fixed features 
@@ -50,7 +50,7 @@ data = pd.DataFrame(cancer.data, columns=cancer.feature_names)
 fixed = ['mean area', 'radius error']
 target = pd.Series(cancer.target)
 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, fixed_features=fixed, task_type='classification', voting_strictness='strict', verbose=True)
+final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw = fibe(data, target, fixed_features=fixed, task_type='classification', voting_strictness='strict', verbose=True)
 print(final_features, validationPerformance)
 
 #============================================================
@@ -71,13 +71,13 @@ target = pd.DataFrame(target)
 
 # Without any predefined fixed features
 #-------------------------------------- 
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, task_type='classification', balance=True, model_name='consensus', metric='F1-score', voting_strictness='strict', maxIter=1, verbose=True)
+final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw = fibe(data, target, task_type='classification', balance=True, model_name='consensus', metric='F1-score', voting_strictness='strict', maxIter=1, verbose=True)
 print(final_features, validationPerformance)
 
 # With predefined fixed features 
 #-------------------------------
 fixed = ['pixel_2_1', 'pixel_2_2']
-final_features, actual_score, predicted_score, validationPerformance = fibe(data, target, fixed_features=fixed, task_type='classification', balance=True, metric='F1-score', voting_strictness='strict', maxIter=1, verbose=True)
+final_features, subjectList, actual_score, predicted_score, validationPerformance, dfw = fibe(data, target, fixed_features=fixed, task_type='classification', balance=True, metric='F1-score', voting_strictness='strict', maxIter=1, verbose=True)
 print(final_features, validationPerformance)
 
 
