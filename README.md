@@ -1,52 +1,152 @@
 # Efficient Feature Selection Using Forward Inclusion & Backward Elimination (FIBE)
-This algorithm performs a feature selection for both regression and classification tasks using any of the following models (1) linear support vector regressor/classifier, (2) Gaussian support vector regressor/classifier, (3) Regression/random forest, (4) AdaBoost regressor/classifier with linear support vector and (5) AdaBoost regressor/classifier with decision trees. This algorithm can also use model consensus in feature selection using (1) linear support vector regressor/classifier, (2) Gaussian support vector regressor/classifier, and (3) Regression/random forest. For loss calculation as well as validation performance estimation, this algorithm comes with options of using (1) mean absolute error (MAE) (2) mean absolute percentage error (MAPE), (3) accuracy, (4) F1-score, and (5) binaryROC metrics. The ``fibe_function`` contains all the necessary functions to run this algorithm. 
+
+This algorithm performs nested cross-validation feature selection for both regression and classification tasks using Forward Inclusion Backward Elimination (FIBE). The algorithm uses nested cross-validation where N outer folds divide the data, and for each outer fold, N inner folds perform cross-validation to select features. Multiple voting strategies are available to aggregate features across outer folds.
 
 ## GitHub Repo
 https://github.com/i3-research/fibe
 
+## Features
+
+### Supported Models
+- **Regression**: linearSVR, gaussianSVR, RegressionForest, AdaBoostDT, AdaBoostSVR, and consensus (using linearSVR, gaussianSVR, and RegressionForest)
+- **Classification**: linearSVC, gaussianSVC, RandomForest, AdaBoostDT, AdaBoostSVC, and consensus (using linearSVC, gaussianSVC, and RandomForest)
+
+### Performance Metrics
+- **Regression**: Mean Absolute Error (MAE), Mean Absolute Percentage Error (MAPE)
+- **Classification**: Accuracy, F1-score, binaryROC
+
+### Voting Strategies
+The algorithm provides seven voting strategies to select the final feature set from N outer fold selections:
+
+1. **'strict'**: Features selected at least 0.6 × N times across outer folds
+2. **'loose'**: Features selected at least 0.4 × N times across outer folds
+3. **'weighted'** (default): Weighted ranking based on feature positions in each fold's selected feature list, with threshold at max_length (Km), and ensures features selected ≥3 times (strict) are included
+4. **'union'**: Takes the union of all features selected across all N outer folds
+5. **'conditional'**: First tries strict voting, then falls back to loose voting, and finally to union based on specific conditions
+6. **'2-stage-selection'**: First stage takes union of features from N outer folds, then reruns the entire FIBE process on these features with reshuffled data partitions (different random seed) to produce a second set of N feature selections, and finally takes union of the second stage features as the final selection
+7. **'best-fold'**: Evaluates each outer fold's selected features on all other (N-1) outer folds using N inner folds cross-validation on each, computes mean performance (accuracy/error) for each fold, and selects the fold with best mean performance (highest for classification, lowest for regression) as the final feature set
+
 ## How to Run the Algorithm
-To run this algorithm, the following function is needed to call with appropriate parameter selection:
 
-``selectedFeatures, actualScore, predictedScore, validationPerformance = fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns_names=None, task_type=None, probability=False, balance=False, model_name=None, metric=None, voting_strictness=None, nFold=None, maxIter=None, tolerance=None, maxFeatures=None, save_intermediate=False, output_dir=None, inference_data_df=None, inference_score_df=None, verbose=True)``
+To run this algorithm, call the `fibe()` function with appropriate parameters:
 
-Here, 
-- ``feature_df`` is the 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
-- ``score_df`` is the 1D score vector as a column (supports DataFrame, Numpy Array, and List).
-- ``data_cleaning`` if True, cleans the data including dropping invalid and imbalanced features, mapping categories to numeric values, imputing data with median/mean values.
-- ``fixed_features`` Predefined features that must stay in the feature set and the FIBE algorithm does not add or remove those. Must be either a List of names to select from 'feature_df,' or DataFrame of features added separately to 'feature_df.'
-- ``columns_names`` contain the names of the features. The algorithm returns the names of the selected features from this list. If not available, then the algorithm returns the column indexes of selected features. 
-- ``task_type`` either 'regression' or 'classification.' The default is 'regression.'
-- ``probability`` if True, probability values (for the class 1) that leads to binary classifications is returned. This option only works when the 'task_type=regression.'
-- ``balance`` In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
-- ``model_name`` For 'regression' task, choose from 'linearSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', and 'consensus' (consensus using 'linearSVR', 'gaussianSVR', and 'RegressionForest'). The default is ``'linearSVR'``. For the 'classification' task, choose from 'linearSVC', 'gaussianSVC', 'RandomForest', 'AdaBoostDT', 'AdaBoostSVC', and 'consensus' (consensus using 'linearSVC', 'gaussianSVC', and 'RandomForest'). The default is ``'linearSVC'``.
-- ``metric`` For the ``regression`` task, choose from 'MAE' and 'MAPE'. The default is 'MAE.' For the 'classification' task, choose from 'Accuracy', 'F1-score', and 'binaryROC'. The default is ``'Accuracy'``.
-- ``voting_strictness`` The option 'strict' chooses those features that are selected at least 3 times in 5-fold cross-validation; the option 'loose' chooses those features that are selected at least 2 times in 5-fold cross-validation, and the option 'both' produces two sets of results, one for 'strict' and one for 'loose'. The default is ``'strict'``. For any random number of folds, ``N``, the 'strict' threshold should be ``0.6 X N`` and the 'loose' threshold should be ``0.4 X N``.
-- ``nFold`` Number of folds in cross-validation. Preferred and default is ``5``.
-- ``maxIter`` is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is ``3``.
-- ``tolerance`` is the percentage of deviation in the error/accuracy threshold allowed. The default is ``0.05``, i.e., 5%.
-- ``maxFeatures:`` is the number that indicate the number of features to be allowed under tolerance. Default is ``3.``
-- ``save_intermediate`` If True, saves intermediate results to the specified directory. Default is False.
-- ``output_dir`` Directory where intermediate results are saved if save_intermediate is True.
-- ``inference_data_df`` Data for optional second inference cohort for prediction using the selected subset of features.
-- ``inference_score_df`` Scores for optional second inference cohort for prediction using the selected subset of features.
-- ``verbose`` generates text for intermediate loss and selected feature list during iteration. The default is ``True``.
+```python
+final_features, subjectList, actualScore, predictedScore, validationPerformance, dfw = fibe(
+    feature_df, 
+    score_df, 
+    data_cleaning=False, 
+    fixed_features=None, 
+    columns_names=None, 
+    task_type=None, 
+    probability=False, 
+    balance=False, 
+    model_name=None, 
+    metric=None, 
+    voting_strictness=None, 
+    nFold=None, 
+    maxIter=None, 
+    tolerance=None, 
+    maxFeatures=None, 
+    save_intermediate=False, 
+    output_dir=None, 
+    inference_data_df=None, 
+    inference_score_df=None, 
+    verbose=True
+)
+```
 
-The outputs are:
-- ``selectedFeatures`` is the list of features if ``columns_names`` was not ``None``. Otherwise column indexes of the selected features. For ``voting_strictness`` of 'both', ``selectedFeatures`` contains two sets of output as ``[[selected features for 'strict'], [selected feature for 'loose']]``. 
-- ``actualScore`` is the list containing actual target scores. If ``model_name`` is chosen as 'consensus', this list has a repetition of values 3 times, to correspond to predictions by three models. For ``voting_strictness`` of 'both', ``actualScore`` contains two sets of output as ``[[actual scores for 'strict'], [actual scores for 'loose']]``. 
-- ``predictedScore`` is the list containing predicted scores. If ``model_name`` is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation are generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision-making. For ``voting_strictness`` of 'both', ``predictedScore`` contains two sets of output as ``[[predicted scores for 'strict'], [predicted score for 'loose']]``. If the argument ``probability`` is set 'True' and ``task_type`` is 'cassification', then ``predictedScore`` contains an additional list of prediction probability for class 1 score values for the inference data. The structure is then ``[[[predicted scores for 'strict'], ['predicted probabilities for 'strict']], [[predicted score for 'loose'],[predicted probabilities for 'loose']]``.
-- ``validationPerformance`` is a list containing validation performance in terms of chosen ``metric`` for ``nFold`` folds. For ``voting_strictness`` of 'both', ``validationPerformance`` contains two sets of output as ``[[validation performance for 'strict'], [validation performance score for 'loose']]``. 
+## Parameters
+
+### Required Parameters
+- **`feature_df`**: The 2D feature matrix (supports DataFrame, Numpy Array, and List) with columns representing different features.
+- **`score_df`**: The 1D score vector as a column (supports DataFrame, Numpy Array, and List).
+
+### Optional Parameters
+
+#### Data Processing
+- **`data_cleaning`** (bool, default=False): If True, cleans the data including dropping invalid and imbalanced features, mapping categories to numeric values, imputing data with median/mean values.
+- **`fixed_features`** (list or DataFrame, default=None): Predefined features that must stay in the feature set and the FIBE algorithm does not add or remove those. Must be either a List of names to select from `feature_df`, or DataFrame of features added separately to `feature_df`.
+- **`columns_names`** (list, default=None): Contains the names of the features. The algorithm returns the names of the selected features from this list. If not available, then the algorithm returns the column indexes of selected features.
+
+#### Task Configuration
+- **`task_type`** (str, default='regression'): Either `'regression'` or `'classification'`.
+- **`probability`** (bool, default=False): If True, probability values (for class 1) that lead to binary classifications is returned. This option only works when `task_type` is `'classification'`.
+- **`balance`** (bool, default=False): In a binary classification task, if the data is imbalanced in terms of classes, `balance=True` uses resampling to balance the data.
+
+#### Model Selection
+- **`model_name`** (str, default=None): 
+  - For `'regression'` task: `'linearSVR'`, `'gaussianSVR'`, `'RegressionForest'`, `'AdaBoostDT'`, `'AdaBoostSVR'`, or `'consensus'`. Default is `'linearSVR'`.
+  - For `'classification'` task: `'linearSVC'`, `'gaussianSVC'`, `'RandomForest'`, `'AdaBoostDT'`, `'AdaBoostSVC'`, or `'consensus'`. Default is `'linearSVC'`.
+
+#### Performance Metrics
+- **`metric`** (str, default=None):
+  - For `'regression'` task: `'MAE'` or `'MAPE'`. Default is `'MAE'`.
+  - For `'classification'` task: `'Accuracy'`, `'F1-score'`, or `'binaryROC'`. Default is `'Accuracy'`.
+
+#### Feature Selection Configuration
+- **`voting_strictness`** (str, default='weighted'): Choose from `'strict'`, `'loose'`, `'weighted'`, `'union'`, `'conditional'`, `'2-stage-selection'`, or `'best-fold'`. See [Voting Strategies](#voting-strategies) section for details.
+- **`nFold`** (int, default=5): Number of folds in cross-validation. Preferred and default is `5`.
+- **`maxIter`** (int, default=3): Maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold.
+- **`tolerance`** (float, default=0.05): Percentage of deviation in the error/accuracy threshold allowed. Default is `0.05` (5%).
+- **`maxFeatures`** (int, default=3): Number of features to be allowed under tolerance. Default is `3`.
+
+#### Output Options
+- **`save_intermediate`** (bool, default=False): If True, saves intermediate results to the specified directory.
+- **`output_dir`** (str, default=None): Directory where intermediate results are saved if `save_intermediate` is True.
+- **`inference_data_df`** (DataFrame/Array/List, default=None): Data for optional second inference cohort for prediction using the selected subset of features.
+- **`inference_score_df`** (DataFrame/Array/List, default=None): Scores for optional second inference cohort for prediction using the selected subset of features.
+- **`verbose`** (bool, default=True): Generates text for intermediate loss and selected feature list during iteration.
+
+## Outputs
+
+The function returns a tuple with the following elements (in order):
+
+1. **`final_features`** (list): The list of features if `columns_names` was not `None`. Otherwise column indexes of the selected features. This represents the final selected feature set after applying the chosen voting_strictness method.
+
+2. **`subjectList`** (list): List of subjects used in inference. Each subject/patient is assigned a name as `'subXX'` and according to this list, other outputs are organized in the subsequent generated lists.
+
+3. **`actualScore`** (list): List containing actual target scores. If `model_name` is chosen as `'consensus'`, this list has a repetition of values 3 times, to correspond to predictions by three models. If `save_intermediate` is `True`, `actualScore[-1]` contains an additional list of actual score values of the inference data (if `inference_data_df` is provided).
+
+4. **`predictedScore`** (list or nested list): List containing predicted scores. If `model_name` is chosen as `'consensus'`, this list has 3 predictions per observation. Although 3 predictions per observation are generated here, `'consensus'` uses an averaging of the losses for 3 predictions in decision-making. If `probability` is set `True` and `task_type` is `'classification'`, then `predictedScore` contains an additional list of prediction probability for class 1 score values. The structure is then `[predicted, predicted_probs]`.
+
+5. **`validationPerformance`** (list): List containing validation performance in terms of chosen `metric` for `nFold` folds. Each element corresponds to the performance on one fold during cross-validation inference.
+
+6. **`dfw`** (DataFrame or None): DataFrame containing feature weights (for `'weighted'` voting_strictness) or None (for other voting methods). When available, it contains columns: `'Feature'`, `'Weight'`, and `'Relative Weight (%)'` sorted by relative weight in descending order.
 
 ## Algorithm Overview
-![Alt text](figure/figure_v2.png?raw=true "Title")
-Figure: Schematic diagram of our FIBE algorithm.
+
+![FIBE Algorithm Schematic](figure/figure_v2.png?raw=true "FIBE Algorithm")
+
+Figure: Schematic diagram of the FIBE algorithm showing nested cross-validation structure with N outer folds and N inner folds for feature selection.
 
 ## Example Code
-An example Python file ``main.py`` is given. It includes example code to run one classification and one regression problem. Further, it includes examples of how to run the algorithm with predefined fixed features as well as data balancing options.
+
+An example Python file `main.py` is included. It demonstrates:
+- Running classification problems
+- Running regression problems
+- Using predefined fixed features
+- Using data balancing options
+- Different voting strategies
 
 ## Required Packages
-Please refer to the ``requirements.txt`` file.
 
-## Suggestions and Comments
-- Prof. Yangming Ou, PhD (Yangming.Ou@childrens.harvard.edu)
-- Mohammad Arafat Hussain, PhD (Mohammad.Hussain@childrens.harvard.edu)
+Please refer to the `requirements.txt` file for all required dependencies.
+
+## Citation
+
+If you use this software, please cite:
+
+```
+Forward Inclusion Backward Elimination (FIBE) Algorithm
+Copyright (c) Mohammad Arafat Hussain, Boston Children's Hospital/Harvard Medical School, 2023
+```
+
+## Contact and Support
+
+For suggestions, comments, or questions, please contact:
+- **Prof. Yangming Ou, PhD**: Yangming.Ou@childrens.harvard.edu
+- **Mohammad Arafat Hussain, PhD**: Mohammad.Hussain@childrens.harvard.edu
+
+## License
+
+See the copyright notice in the source code files for licensing information.

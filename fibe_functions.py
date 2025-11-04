@@ -19,7 +19,7 @@
 # DEALINGS IN THE SOFTWARE.
 # 
 #
-# Last Updated: 04/02/2025 at 1900H EST, By Mohammmad Arafat Hussain.
+# Last Updated: 11/04/2025 at 1200H EST, By Mohammmad Arafat Hussain.
 
 
 import pandas as pd
@@ -52,7 +52,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     columns_names: contain the names of the features. The algorithm returns the names of the selected features from this list. 
             If not available, then the algorithm returns the column indexes of selected features. 
     task_type: either 'regression' or 'classification.' The default is 'regression.'
-    probability: if True, probability values (for the class 1) that leads to binary classifications is returned. This option only works when the 'task_type=regression.'
+    probability: if True, probability values (for the class 1) that leads to binary classifications is returned. This option only works when the 'task_type' is 'classification'.
     balance: In a binary classification task, if the data is imbalanced in terms of classes, 'balance=True' uses resampling to balance the data.
     model_name: For the 'regression' task, choose from 'linearSVR', 'gaussianSVR', 'RegressionForest', 'AdaBoostDT', 'AdaBoostSVR', 
             and 'consensus' (consensus using 'linearSVR', 'gaussianSVR', and 'RegressionForest'). The default is 'linearSVR'. For 'classification' task, 
@@ -60,11 +60,14 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             'gaussianSVC', and 'RandomForest'). The default is 'linearSVC'.
     metric: For the 'regression' task, choose from 'MAE' and 'MAPE'. The default is 'MAE.' For the 'classification' task, choose from 'Accuracy', 
             'F1-score,' and 'binaryROC'. The default is 'Accuracy'.
-    voting_strictness: either 'strict' that chooses those features that is selected at least 3 times in 5-fold cross-validation, or 
-            'loose' that chooses those features that is selected at least 2 times in 5-fold cross-validation, or 'both' that chooses both strict and loose options with some conditions. The default is 'strict'.
-            For any random number of folds, N, the 'strict' threshold should be 0.6 X N and the 'loose' threshold should be 0.4 X N. When 'both' is selected, first the system checks if
-            strick feature number is >= 2/3 of avarage number of features selected in 5-folds. If not, then check if loose feature number is <= 2, while the mean feature number over 5-folds 
-            is greater than 4, then the system does union of features.
+    voting_strictness: Choose from 'strict', 'loose', 'weighted', 'union', 'conditional', '2-stage-selection', or 'best-fold'. The default is 'weighted'.
+            'strict': chooses those features that are selected at least 0.6 X N times in N-fold cross-validation.
+            'loose': chooses those features that are selected at least 0.4 X N times in N-fold cross-validation.
+            'weighted': uses weighted ranking based on feature positions in each fold's selected feature list, with threshold at max_length (Km), and ensures features selected >=3 times (strict) are included.
+            'union': takes the union of all features selected across all N outer folds.
+            'conditional': first tries strict voting, then falls back to loose voting, and finally to union based on specific conditions.
+            '2-stage-selection': first stage takes union of features from N outer folds, then reruns the entire FIBE process on these features with reshuffled data partitions (different random seed) to produce a second set of N feature selections, and finally takes union of the second stage features as the final selection.
+            'best-fold': evaluates each outer fold's selected features on all other (N-1) outer folds using N inner folds cross-validation on each, computes mean performance (accuracy/error) for each fold, and selects the fold with best mean performance (highest for classification, lowest for regression) as the final feature set.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
     tolerance: is the percentage of deviation in the error/accuracy threshold allowed. The default is '0.05', i.e., 5%.
@@ -75,20 +78,22 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     inference_score_df: scores for optional second inference cohort for prediction using the selected subset of features.
     verbose: generates text for intermediate loss and selected feature list during iteration. The default is 'True'.
 
-    The outputs are:
-    subjectList: is the list for subjects used in inference. Each subject/patient is assigned a name as 'subXX' and according to this list, other outputs are organized in the subsequent generated lists.
-    selectedFeatures: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features. For 'voting_strictness' of 'both', 
-            'selectedFeatures' contains two sets of output as [[selected features for 'strict'], [selected feature for 'loose']].
-    actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has a repetition of values 3 times, to correspond to 
-            predictions by three models. For 'voting_strictness' of 'both', 'actualScore' contains two sets of output as [[actual scores for 'strict'], [actual scores for 'loose']]. If the argument 
-            'save_intermediate' is set 'True', 'actualScore[-1]' contains an additional list of actual score values of the inference data.
-    predictedScore: is the list containing predicted scores. If 'model_name' is chosen as 'consensus', this list has 3 predictions per observation. Although 3 predictions per observation 
-            are generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision-making. For 'voting_strictness' of 'both', 'predictedScore' contains two sets of 
-            output as [[predicted scores for 'strict'], [predicted score for 'loose']]. If the argument 'probability' is set 'True' and 'task_type' is 'cassification', then predictedScore contains 
-            an additional list of prediction probability for class 1 score values for the inference data. The structure is then 
-            [[[predicted scores for 'strict'], ['predicted probabilities for 'strict']], [[predicted score for 'loose'],[predicted probabilities for 'loose']]
-    validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. For 'voting_strictness' of 'both', 'validationPerformance' contains 
-            two sets of output as [[validation performance for 'strict'], [validation performance score for 'loose']]. 
+    The outputs are (in order):
+    final_features: is the list of features if 'columns_names' was not 'None'. Otherwise column indexes of the selected features. 
+            This represents the final selected feature set after applying the chosen voting_strictness method.
+    subjectList: is the list for subjects used in inference. Each subject/patient is assigned a name as 'subXX' and according to this list, 
+            other outputs are organized in the subsequent generated lists.
+    actualScore: is the list containing actual target scores. If 'model_name' is chosen as 'consensus', this list has a repetition of values 3 times, 
+            to correspond to predictions by three models. If the argument 'save_intermediate' is set 'True', 'actualScore[-1]' contains an additional 
+            list of actual score values of the inference data (if inference_data_df is provided).
+    predictedScore: is the list containing predicted scores. If 'model_name' is chosen as 'consensus', this list has 3 predictions per observation. 
+            Although 3 predictions per observation are generated here, 'consensus' uses an averaging of the losses for 3 predictions in decision-making. 
+            If the argument 'probability' is set 'True' and 'task_type' is 'classification', then predictedScore contains an additional list of 
+            prediction probability for class 1 score values for the inference data. The structure is then [predicted, predicted_probs].
+    validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. Each element corresponds to 
+            the performance on one fold during cross-validation inference.
+    dfw: is a DataFrame containing feature weights (for 'weighted' voting_strictness) or None (for other voting methods). When available, it contains 
+            columns: 'Feature', 'Weight', and 'Relative Weight (%)' sorted by relative weight in descending order. 
     '''
     
     start_time = datetime.now()
@@ -304,8 +309,12 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         vote = 102
     elif voting_strictness == 'union':
         vote = 103
+    elif voting_strictness == '2-stage-selection':
+        vote = 104
+    elif voting_strictness == 'best-fold':
+        vote = 105
     else:
-        raise ValueError("Unknown voting strictness. Must be either 'strict' or 'loose.'")
+        raise ValueError("Unknown voting strictness. Must be either 'strict', 'loose', 'weighted', 'union', 'conditional', '2-stage-selection', or 'best-fold.'")
         
     if tolerance == None:
         tolerance = 0.05  # Default 
@@ -333,11 +342,81 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     
     # selectedFeatures = [[features in fold-1], [features in fold-2],...., [features in fold-n]]
     
+    # 2-stage-selection: First stage - get union of features
+    if vote == 104:  # 2-stage-selection
+        if verbose:
+            print(f"\n============================== Stage 1 Complete =====================================\n")
+            print(f"Running 2-stage-selection approach...\n")
+        
+        # Stage 1: Get union of all features from first stage
+        X_stage1 = [item for sublist in selectedFeatures for item in sublist]
+        stage1_union = list(set(X_stage1))  # Get unique features (union)
+        
+        if verbose:
+            print(f"Stage 1: Union of features from {nFold} outer folds: {stage1_union}\n")
+            print(f"Number of features selected in Stage 1: {len(stage1_union)}\n")
+        
+        # Filter feature_df to only include features from stage 1 union
+        if len(stage1_union) == 0:
+            raise ValueError("Stage 1 did not select any features. Cannot proceed to Stage 2.")
+        
+        feature_df_stage2 = feature_df[stage1_union].copy()
+        
+        if verbose:
+            print(f"\n============================== Stage 2: Training on Stage 1 Features =====================================\n")
+        
+        # Stage 2: Use different random seed to reshuffle data partitions
+        # Use a different seed for second stage (original seed + 1000)
+        if random_seed is None:
+            random_seed_stage2 = None
+        else:
+            random_seed_stage2 = random_seed + 1000
+        
+        if verbose:
+            print(f"Stage 2: Using random seed {random_seed_stage2} (different from Stage 1 seed {random_seed}) for reshuffled data partitions.\n")
+        
+        # Training stage 2 on filtered features with new seed
+        selectedFeatures_stage2 = train(maxIter, nFold, feature_df_stage2, score_df, shuffle_flag, random_seed_stage2, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
+        
+        # Stage 2: Get union of all features from second stage
+        X_stage2 = [item for sublist in selectedFeatures_stage2 for item in sublist]
+        final_features_stage2 = list(set(X_stage2))  # Get unique features (union)
+        
+        if verbose:
+            print(f"\n============================== Stage 2 Complete =====================================\n")
+            print(f"Stage 2: Union of features from {nFold} outer folds: {final_features_stage2}\n")
+            print(f"Number of features selected in Stage 2: {len(final_features_stage2)}\n")
+        
+        # Update selectedFeatures to stage 2 results for inference
+        selectedFeatures = selectedFeatures_stage2
+        
+        # Store the final union features for inference (will be used in inference section)
+        final_features = final_features_stage2.copy()
+    
+    # best-fold: Evaluate each fold's features on other folds and select best
+    if vote == 105:  # best-fold
+        best_features, best_fold_idx, all_fold_performances = evaluate_features_across_folds(
+            selectedFeatures, feature_df, score_df, nFold, shuffle_flag, random_seed, 
+            specialist_features, balance, model_name, model, metric, task_type, verbose
+        )
+        final_features = best_features.copy()
+        
+        if verbose:
+            print(f"\n============================== Best Fold Selection Complete =====================================\n")
+            print(f"Selected Fold {best_fold_idx + 1} with features: {final_features}\n")
+            print(f"Performance summary for all folds:")
+            for perf_info in all_fold_performances:
+                print(f"  Fold {perf_info['fold_idx'] + 1}: mean {metric} = {perf_info['mean']:.4f}, std = {perf_info['std']:.4f}")
+            print()
+        
     print(f"\n============================== Inference =====================================\n")
     
     # inference
     if probability == True:
         model = model_infer
+    
+    # Initialize dfw to None (will be set for weighted voting)
+    dfw = None
         
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         X = [item for sublist in selectedFeatures for item in sublist]
@@ -430,6 +509,24 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     
+    elif vote == 104:  #2-stage-selection
+        # final_features was already set in the 2-stage block above
+        if verbose:
+            print(f"\nVoting strictness is selected: {voting_strictness}\n")
+            print(f"Final features from 2-stage-selection (union of Stage 2): {final_features}\n")
+        subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+    
+    elif vote == 105:  #best-fold
+        # final_features was already set in the best-fold block above
+        if verbose:
+            print(f"\nVoting strictness is selected: {voting_strictness}\n")
+            print(f"Final features from best-fold selection: {final_features}\n")
+        subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+    
     elif vote == 101:
         X = [item for sublist in selectedFeatures for item in sublist]
         selectedFeatures = Counter(X)
@@ -477,6 +574,13 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         
         if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
             final_features = [element for element, count in selectedFeatures.items() if count >= vote]
+            subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)    # Added task_type
+            if len(specialist_features) != 0:
+                final_features = list(specialist_features.columns) + final_features
+                
+        elif vote == 102 or vote == 103 or vote == 104 or vote == 105:  #weighted, union, 2-stage-selection, or best-fold
+            # final_features was already computed in the main inference section above
+            # Just use the already-computed final_features
             subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)    # Added task_type
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
@@ -824,6 +928,136 @@ def train(maxIter, nFold, feature_df, score_df, shuffle_flag, random_seed, speci
     #feature_counts = Counter(frequency_of_features_selected_all_fold)
     #return feature_counts
     return frequency_of_features_selected_all_fold
+
+def evaluate_features_across_folds(selectedFeatures, feature_df, score_df, nFold, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, verbose=False):
+    """
+    Evaluates each outer fold's selected features on all other (N-1) outer folds.
+    For each fold i's features, evaluates on fold j's data using N inner folds.
+    Returns the best fold's features along with performance metrics.
+    
+    selectedFeatures: list of lists, where each inner list contains features selected in one outer fold
+    Returns: (best_features, best_fold_idx, all_fold_performances) where all_fold_performances is a list of dicts
+             with keys: 'fold_idx', 'mean', 'std', 'features'
+    """
+    kf5 = KFold(n_splits = nFold, shuffle=shuffle_flag, random_state=random_seed)
+    
+    # Get all outer fold splits
+    outer_fold_splits = list(kf5.split(feature_df))
+    
+    all_fold_performances = []
+    
+    if verbose:
+        print(f"\n============================== Evaluating Features Across Folds =====================================\n")
+        print(f"Evaluating {nFold} outer folds, each on {nFold-1} other folds with {nFold} inner folds each.\n")
+    
+    # For each outer fold i
+    for fold_i_idx in range(nFold):
+        selected_features_i = selectedFeatures[fold_i_idx]
+        
+        if verbose:
+            print(f"\nEvaluating Fold {fold_i_idx + 1} features: {selected_features_i}")
+        
+        performance_list = []
+        
+        # For each other outer fold j (N-1 folds)
+        for fold_j_idx in range(nFold):
+            if fold_j_idx == fold_i_idx:
+                continue  # Skip the same fold
+            
+            # Get fold j's data
+            fold_j_train_indices = outer_fold_splits[fold_j_idx][0]
+            fold_j_data = feature_df.iloc[fold_j_train_indices]
+            fold_j_scores = score_df.iloc[fold_j_train_indices]
+            
+            if len(specialist_features) != 0:
+                fold_j_specialist = specialist_features.iloc[fold_j_train_indices]
+            
+            # Split fold j's data into N inner folds
+            kf5_inner = KFold(n_splits=nFold, shuffle=shuffle_flag, random_state=random_seed)
+            
+            for inner_fold in kf5_inner.split(fold_j_data):
+                inner_train_indices = inner_fold[0]
+                inner_val_indices = inner_fold[1]
+                
+                # Training data for this inner fold
+                inner_train_data = fold_j_data.iloc[inner_train_indices]
+                inner_train_scores = fold_j_scores.iloc[inner_train_indices]
+                
+                # Validation data for this inner fold
+                inner_val_data = fold_j_data.iloc[inner_val_indices]
+                inner_val_scores = fold_j_scores.iloc[inner_val_indices]
+                
+                # Prepare features (selected_features_i from fold i)
+                df_feature_train = inner_train_data[selected_features_i]
+                df_feature_val = inner_val_data[selected_features_i]
+                
+                # Handle specialist features
+                if len(specialist_features) != 0:
+                    inner_train_spec = fold_j_specialist.iloc[inner_train_indices]
+                    inner_val_spec = fold_j_specialist.iloc[inner_val_indices]
+                    
+                    if balance == True:
+                        df_feature_train, inner_train_scores = balanceData(pd.concat([inner_train_spec, df_feature_train], axis=1), inner_train_scores)
+                        df_feature_val, inner_val_scores = balanceData(pd.concat([inner_val_spec, df_feature_val], axis=1), inner_val_scores)
+                    else:
+                        df_feature_train = pd.concat([inner_train_spec, df_feature_train], axis=1)
+                        df_feature_val = pd.concat([inner_val_spec, df_feature_val], axis=1)
+                else:
+                    if balance == True:
+                        df_feature_train, inner_train_scores = balanceData(df_feature_train, inner_train_scores)
+                        df_feature_val, inner_val_scores = balanceData(df_feature_val, inner_val_scores)
+                
+                # Train and evaluate
+                if model_name == 'consensus':
+                    predictions = []
+                    for one_model in model:
+                        model_ = model[one_model]
+                        model_.fit(df_feature_train, inner_train_scores.values.ravel())
+                        y_pred = model_.predict(df_feature_val)
+                        predictions.append(y_pred)
+                    
+                    if task_type == 'regression':
+                        consensus_pred = [(a+b+c)/3 for a,b,c in zip(predictions[0], predictions[1], predictions[2])]
+                    elif task_type == 'classification':
+                        def majority_vote(a,b,c):
+                            return 1 if a+b+c>1 else 0
+                        consensus_pred = [majority_vote(a,b,c) for a,b,c in zip(predictions[0], predictions[1], predictions[2])]
+                    
+                    performance = loss_estimation(metric, inner_val_scores, consensus_pred)
+                else:
+                    model.fit(df_feature_train, inner_train_scores.values.ravel())
+                    y_pred = model.predict(df_feature_val)
+                    performance = loss_estimation(metric, inner_val_scores, y_pred)
+                
+                performance_list.append(performance)
+        
+        # Calculate mean and std for fold i
+        mean_performance = np.mean(performance_list)
+        std_performance = np.std(performance_list)
+        
+        all_fold_performances.append({
+            'fold_idx': fold_i_idx,
+            'mean': mean_performance,
+            'std': std_performance,
+            'features': selected_features_i.copy()
+        })
+        
+        if verbose:
+            print(f"  Fold {fold_i_idx + 1} mean {metric}: {mean_performance:.4f} (std: {std_performance:.4f})")
+    
+    # Select best fold based on task type
+    if task_type == 'classification':
+        # Higher is better
+        best_fold_info = max(all_fold_performances, key=lambda x: x['mean'])
+        if verbose:
+            print(f"\nBest fold: Fold {best_fold_info['fold_idx'] + 1} with mean {metric}: {best_fold_info['mean']:.4f} (std: {best_fold_info['std']:.4f})")
+    else:  # regression
+        # Lower is better
+        best_fold_info = min(all_fold_performances, key=lambda x: x['mean'])
+        if verbose:
+            print(f"\nBest fold: Fold {best_fold_info['fold_idx'] + 1} with mean {metric}: {best_fold_info['mean']:.4f} (std: {best_fold_info['std']:.4f})")
+    
+    return best_fold_info['features'], best_fold_info['fold_idx'], all_fold_performances
 
 def inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability):    
     kf5 = KFold(n_splits = nFold, shuffle=shuffle_flag, random_state=random_seed)
