@@ -138,7 +138,7 @@ If you use this software, please cite:
 
 ```
 Forward Inclusion Backward Elimination (FIBE) Algorithm
-Copyright (c) Mohammad Arafat Hussain, Boston Children's Hospital/Harvard Medical School, 2023
+Copyright (c) Yangming Ou, Boston Children's Hospital/Harvard Medical School, 2023
 ```
 
 ## Contact and Support
