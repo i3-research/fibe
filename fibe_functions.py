@@ -60,13 +60,14 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             'gaussianSVC', and 'RandomForest'). The default is 'linearSVC'.
     metric: For the 'regression' task, choose from 'MAE' and 'MAPE'. The default is 'MAE.' For the 'classification' task, choose from 'Accuracy', 
             'F1-score,' and 'binaryROC'. The default is 'Accuracy'.
-    voting_strictness: Choose from 'strict', 'loose', 'weighted', 'union', 'conditional', '2-stage-selection', or 'best-fold'. The default is 'weighted'.
+    voting_strictness: Choose from 'strict', 'loose', 'weighted', 'union', 'conditional', '2-stage-selection-with-union', '2-stage-selection-with-weighted-voting', or 'best-fold'. The default is 'weighted'.
             'strict': chooses those features that are selected at least 0.6 X N times in N-fold cross-validation.
             'loose': chooses those features that are selected at least 0.4 X N times in N-fold cross-validation.
             'weighted': uses weighted ranking based on feature positions in each fold's selected feature list, with threshold at max_length (Km), and ensures features selected >=3 times (strict) are included.
             'union': takes the union of all features selected across all N outer folds.
             'conditional': first tries strict voting, then falls back to loose voting, and finally to union based on specific conditions.
-            '2-stage-selection': first stage takes union of features from N outer folds, then reruns the entire FIBE process on these features with reshuffled data partitions (different random seed) to produce a second set of N feature selections, and finally takes union of the second stage features as the final selection.
+            '2-stage-selection-with-union': first stage takes union of features from N outer folds, then reruns the entire FIBE process on these features with reshuffled data partitions (different random seed) to produce a second set of N feature selections, and finally takes union of the second stage features as the final selection.
+            '2-stage-selection-with-weighted-voting': first stage takes union of features from N outer folds, reruns the FIBE process on these features with reshuffled data partitions, and finally applies weighted majority voting across all selected feature sets from both stages (total 2 x N lists) to determine the final feature subset.
             'best-fold': evaluates each outer fold's selected features on all other (N-1) outer folds using N inner folds cross-validation on each, computes mean performance (accuracy/error) for each fold, and selects the fold with best mean performance (highest for classification, lowest for regression) as the final feature set.
     nFold: Number of folds in cross-validation. Preferred and default is '5'.
     maxIter: is the maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold. The default is '3'.
@@ -98,6 +99,66 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     
     start_time = datetime.now()
     print("Code started running at:", start_time.strftime("%Y-%m-%d %H:%M:%S"))
+    
+    def apply_weighted_voting(selected_features_lists, verbose=False, descriptor=None):
+        if not selected_features_lists:
+            return [], pd.DataFrame(columns=["Feature", "Weight", "Relative Weight (%)"])
+
+        num_lists = len(selected_features_lists)
+        descriptor = descriptor or f"{num_lists} folds"
+
+        feature_counts = Counter([item for sublist in selected_features_lists for item in sublist])
+        strict_threshold = max(1, round(0.6 * num_lists))
+        strict_voting_features = [feat for feat, count in feature_counts.items() if count >= strict_threshold]
+        if verbose:
+            print(f"Features selected at least {strict_threshold} times that will be included : {strict_voting_features}")
+
+        max_length = max((len(sublist) for sublist in selected_features_lists), default=0)
+        dict_list = []
+        for sublist in selected_features_lists:
+            length = len(sublist)
+            dict_list.append({sublist[i]: max_length - i for i in range(length)})
+
+        if verbose:
+            print(f"Features with assigned ranks in each set ({descriptor}): {dict_list}\n")
+
+        final_dict = {}
+        for d in dict_list:
+            for key, value in d.items():
+                final_dict[key] = final_dict.get(key, 0) + value
+
+        if verbose:
+            print(f"Final feature set over {descriptor} with weighted ranks: {final_dict}\n")
+
+        threshold = max_length
+        final_dict_sorted = sorted(final_dict.items(), key=lambda x: x[1], reverse=True)
+
+        if verbose:
+            filtered_sorted = [(item[0], item[1]) for item in final_dict_sorted if item[1] >= threshold]
+            print(f"Features selected after thresholding the weighted features, threshold = {threshold} : {filtered_sorted}")
+
+        weighted_features = [item[0] for item in final_dict_sorted if item[1] >= threshold]
+
+        for feat in strict_voting_features:
+            if feat not in weighted_features:
+                weighted_features.append(feat)
+
+        if verbose:
+            print(f"Features selected that satisfied the threshold of {threshold} including features selected at least {strict_threshold} times: {weighted_features}\n")
+
+        if weighted_features:
+            filtered_data = {key: value for key, value in final_dict.items() if key in weighted_features}
+            dfw_local = pd.DataFrame(filtered_data.items(), columns=["Feature", "Weight"])
+            total_weight = dfw_local["Weight"].sum()
+            if total_weight == 0:
+                dfw_local["Relative Weight (%)"] = 0.0
+            else:
+                dfw_local["Relative Weight (%)"] = (dfw_local["Weight"] / total_weight) * 100
+            dfw_local = dfw_local.sort_values("Relative Weight (%)", ascending=False)
+        else:
+            dfw_local = pd.DataFrame(columns=["Feature", "Weight", "Relative Weight (%)"])
+
+        return weighted_features, dfw_local
     
     # Data Curation : Added by Ankush Kesri
     if data_cleaning == True:
@@ -309,12 +370,14 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         vote = 102
     elif voting_strictness == 'union':
         vote = 103
-    elif voting_strictness == '2-stage-selection':
+    elif voting_strictness == '2-stage-selection-with-union':
         vote = 104
     elif voting_strictness == 'best-fold':
         vote = 105
+    elif voting_strictness == '2-stage-selection-with-weighted-voting':
+        vote = 106
     else:
-        raise ValueError("Unknown voting strictness. Must be either 'strict', 'loose', 'weighted', 'union', 'conditional', '2-stage-selection', or 'best-fold.'")
+        raise ValueError("Unknown voting strictness. Must be either 'strict', 'loose', 'weighted', 'union', 'conditional', '2-stage-selection-with-union', '2-stage-selection-with-weighted-voting', or 'best-fold.'")
         
     if tolerance == None:
         tolerance = 0.05  # Default 
@@ -342,14 +405,17 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     
     # selectedFeatures = [[features in fold-1], [features in fold-2],...., [features in fold-n]]
     
-    # 2-stage-selection: First stage - get union of features
-    if vote == 104:  # 2-stage-selection
+    # 2-stage-selection variations
+    dfw_stage_combined = None
+    if vote in (104, 106):  # two-stage selections
         if verbose:
             print(f"\n============================== Stage 1 Complete =====================================\n")
-            print(f"Running 2-stage-selection approach...\n")
+            print(f"Running {voting_strictness} approach...\n")
+        
+        selectedFeatures_stage1 = copy.deepcopy(selectedFeatures)
         
         # Stage 1: Get union of all features from first stage
-        X_stage1 = [item for sublist in selectedFeatures for item in sublist]
+        X_stage1 = [item for sublist in selectedFeatures_stage1 for item in sublist]
         stage1_union = list(set(X_stage1))  # Get unique features (union)
         
         if verbose:
@@ -366,7 +432,6 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             print(f"\n============================== Stage 2: Training on Stage 1 Features =====================================\n")
         
         # Stage 2: Use different random seed to reshuffle data partitions
-        # Use a different seed for second stage (original seed + 1000)
         if random_seed is None:
             random_seed_stage2 = None
         else:
@@ -387,27 +452,15 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             print(f"Stage 2: Union of features from {nFold} outer folds: {final_features_stage2}\n")
             print(f"Number of features selected in Stage 2: {len(final_features_stage2)}\n")
         
-        # Update selectedFeatures to stage 2 results for inference
-        selectedFeatures = selectedFeatures_stage2
+        selectedFeatures = copy.deepcopy(selectedFeatures_stage2)
         
-        # Store the final union features for inference (will be used in inference section)
-        final_features = final_features_stage2.copy()
-    
-    # best-fold: Evaluate each fold's features on other folds and select best
-    if vote == 105:  # best-fold
-        best_features, best_fold_idx, all_fold_performances = evaluate_features_across_folds(
-            selectedFeatures, feature_df, score_df, nFold, shuffle_flag, random_seed, 
-            specialist_features, balance, model_name, model, metric, task_type, verbose
-        )
-        final_features = best_features.copy()
-        
-        if verbose:
-            print(f"\n============================== Best Fold Selection Complete =====================================\n")
-            print(f"Selected Fold {best_fold_idx + 1} with features: {final_features}\n")
-            print(f"Performance summary for all folds:")
-            for perf_info in all_fold_performances:
-                print(f"  Fold {perf_info['fold_idx'] + 1}: mean {metric} = {perf_info['mean']:.4f}, std = {perf_info['std']:.4f}")
-            print()
+        if vote == 104:  # with union
+            final_features = final_features_stage2.copy()
+        elif vote == 106:  # with weighted voting across both stages
+            combined_feature_lists = selectedFeatures_stage1 + selectedFeatures_stage2
+            combined_descriptor = f"{len(combined_feature_lists)} fold sets (Stage 1 + Stage 2)"
+            final_features_weighted, dfw_stage_combined = apply_weighted_voting(combined_feature_lists, verbose=verbose, descriptor=combined_descriptor)
+            final_features = copy.deepcopy(final_features_weighted)
         
     print(f"\n============================== Inference =====================================\n")
     
@@ -417,6 +470,8 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     
     # Initialize dfw to None (will be set for weighted voting)
     dfw = None
+    if vote == 106 and dfw_stage_combined is not None:
+        dfw = dfw_stage_combined
         
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         X = [item for sublist in selectedFeatures for item in sublist]
@@ -429,74 +484,10 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             final_features = list(specialist_features.columns) + final_features
     
     elif vote == 102: #weighted #default
-        # making sure that features from strict voting are always included
-        X = [item for sublist in selectedFeatures for item in sublist]
-        Feature_counts = Counter(X)
-        Feature_counts_sorted = sorted(Feature_counts.items(), key=lambda x: x[1], reverse=True)   #Keeping the order of features (descending) based on their frequency
-        
-        strict_voting_features = [item[0] for item in Feature_counts_sorted if item[1] >=3]
-        print(f"Features selected atleast 3 times that will be included : {strict_voting_features}")
-        
-        max_length = max(len(sublist) for sublist in selectedFeatures)  # max_length = Km
-        dict_list = []
-        for sublist in selectedFeatures:
-            length = len(sublist)
-            dict_list.append({sublist[i]: max_length - i for i in range(length)})
-
-        if verbose:
-            print(f"Features with assigned ranks in each {nFold}-folds: {dict_list}\n")
-
-        final_dict = {}
-        for d in dict_list:
-            for key, value in d.items():
-                if key in final_dict:
-                    final_dict[key] += value
-                else:
-                    final_dict[key] = value
-
-        if verbose:
-            print(f"Final feature set over {nFold}-folds with weighted ranks: {final_dict}\n")
-
-        threshold = max_length      #Km
-        final_dict_sorted = sorted(final_dict.items(), key=lambda x: x[1], reverse=True)
-        
-        weighted_features_with_rank = [item for item in final_dict_sorted if item[1] >= threshold]
-        print(f"Features selected after thresholding) the weighted features, threshold = {threshold} : {weighted_features_with_rank}")
-        weighted_features = [item[0] for item in final_dict_sorted if item[1] >= threshold]
-
-
-        for _ in strict_voting_features:
-            if _ not in weighted_features:
-                weighted_features.append(_)
-        final_features = copy.deepcopy(weighted_features)
-
-        if verbose:
-            print(f"Features selected that satisfied the threshold of {threshold} including features selected at least 3 times: {final_features}\n")
-            
+        final_features, dfw = apply_weighted_voting(selectedFeatures, verbose=verbose, descriptor=f"{nFold}-folds")
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
-            
-            
-        #--------- Estimation of Weights in Percentage -------
-        
-        data = final_dict
-        data_final = final_features
-        
-        # Filter data using data_final
-        filtered_data = {key: value for key, value in data.items() if key in data_final}
-
-        # Create DataFrame
-        dfw = pd.DataFrame(filtered_data.items(), columns=["Feature", "Weight"])
-
-        # Calculate relative weights as a percentage
-        total_weight = dfw["Weight"].sum()
-        dfw["Relative Weight (%)"] = (dfw["Weight"] / total_weight) * 100
-
-        # Sort by relative weight for the plot
-        dfw = dfw.sort_values("Relative Weight (%)", ascending=False)
-        
-        #-----------------------------------------------------
     
     elif vote == 103:  #union
         X = [item for sublist in selectedFeatures for item in sublist]
@@ -509,11 +500,11 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     
-    elif vote == 104:  #2-stage-selection
+    elif vote == 104:  #2-stage-selection-with-union
         # final_features was already set in the 2-stage block above
         if verbose:
             print(f"\nVoting strictness is selected: {voting_strictness}\n")
-            print(f"Final features from 2-stage-selection (union of Stage 2): {final_features}\n")
+            print(f"Final features from two-stage union: {final_features}\n")
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
@@ -524,6 +515,14 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             print(f"\nVoting strictness is selected: {voting_strictness}\n")
             print(f"Final features from best-fold selection: {final_features}\n")
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
+        if len(specialist_features) != 0:
+            final_features = list(specialist_features.columns) + final_features
+    
+    elif vote == 106:  #2-stage-selection-with-weighted-voting
+        if verbose:
+            print(f"\nVoting strictness is selected: {voting_strictness}\n")
+            print(f"Final features from two-stage weighted voting: {final_features}\n")
+        subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
     
@@ -578,14 +577,13 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
                 
-        elif vote == 102 or vote == 103 or vote == 104 or vote == 105:  #weighted, union, 2-stage-selection, or best-fold
+        elif vote == 102 or vote == 103 or vote == 104 or vote == 105 or vote == 106:  #weighted, union, two-stage options, or best-fold
             # final_features was already computed in the main inference section above
-            # Just use the already-computed final_features
             subjectList_add, actual_score_add, predicted_score_add, validationPerformance_add = inference_additional(final_features, feature_df, score_df, specialist_features, inference_data_df, inference_score_df, model_name, model, metric, task_type, probability)    # Added task_type
             if len(specialist_features) != 0:
                 final_features = list(specialist_features.columns) + final_features
                 
-        elif vote == 101: #conditional
+        elif vote == 101:
             # for strict choice
             final_features = [element for element, count in selectedFeatures.items() if count >= round(0.6 * nFold)]
             if len(final_features) >= (2/3)*floored_mean:

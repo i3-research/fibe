@@ -18,13 +18,14 @@ https://github.com/i3-research/fibe
 ### Voting Strategies
 The algorithm provides seven voting strategies to select the final feature set from N outer fold selections:
 
-1. **'strict'**: Features selected at least 0.6 × N times across outer folds
-2. **'loose'**: Features selected at least 0.4 × N times across outer folds
+1. **'strict'**: Features selected at least 0.6 x N times across outer folds
+2. **'loose'**: Features selected at least 0.4 x N times across outer folds
 3. **'weighted'** (default): Weighted ranking based on feature positions in each fold's selected feature list, with threshold at max_length (Km), and ensures features selected ≥3 times (strict) are included
 4. **'union'**: Takes the union of all features selected across all N outer folds
 5. **'conditional'**: First tries strict voting, then falls back to loose voting, and finally to union based on specific conditions
-6. **'2-stage-selection'**: First stage takes union of features from N outer folds, then reruns the entire FIBE process on these features with reshuffled data partitions (different random seed) to produce a second set of N feature selections, and finally takes union of the second stage features as the final selection
-7. **'best-fold'**: Evaluates each outer fold's selected features on all other (N-1) outer folds using N inner folds cross-validation on each, computes mean performance (accuracy/error) for each fold, and selects the fold with best mean performance (highest for classification, lowest for regression) as the final feature set
+6. **'2-stage-selection-with-union'**: First stage takes union of features from N outer folds, then reruns the entire FIBE process on these features with reshuffled data partitions (different random seed) to produce a second set of N feature selections, and finally takes union of the second stage features as the final selection
+7. **'2-stage-selection-with-weighted-voting'**: First stage takes union of features from N outer folds, reruns the FIBE process on these features with reshuffled data partitions, and then applies weighted majority voting across all feature sets from both stages (total 2 x N lists) to determine the final feature subset
+8. **'best-fold'**: Evaluates each outer fold's selected features on all other (N-1) outer folds using N inner folds cross-validation on each, computes mean performance (accuracy/error) for each fold, and selects the fold with best mean performance (highest for classification, lowest for regression) as the final feature set
 
 ## How to Run the Algorithm
 
@@ -84,7 +85,7 @@ final_features, subjectList, actualScore, predictedScore, validationPerformance,
   - For `'classification'` task: `'Accuracy'`, `'F1-score'`, or `'binaryROC'`. Default is `'Accuracy'`.
 
 #### Feature Selection Configuration
-- **`voting_strictness`** (str, default='weighted'): Choose from `'strict'`, `'loose'`, `'weighted'`, `'union'`, `'conditional'`, `'2-stage-selection'`, or `'best-fold'`. See [Voting Strategies](#voting-strategies) section for details.
+- **`voting_strictness`** (str, default='weighted'): Choose from `'strict'`, `'loose'`, `'weighted'`, `'union'`, `'conditional'`, `'2-stage-selection-with-union'`, `'2-stage-selection-with-weighted-voting'`, or `'best-fold'`. See [Voting Strategies](#voting-strategies) section for details.
 - **`nFold`** (int, default=5): Number of folds in cross-validation. Preferred and default is `5`.
 - **`maxIter`** (int, default=3): Maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold.
 - **`tolerance`** (float, default=0.05): Percentage of deviation in the error/accuracy threshold allowed. Default is `0.05` (5%).
