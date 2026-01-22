@@ -93,8 +93,11 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             prediction probability for class 1 score values for the inference data. The structure is then [predicted, predicted_probs].
     validationPerformance: is a list containing validation performance in terms of chosen 'metric' for 'nFold' folds. Each element corresponds to 
             the performance on one fold during cross-validation inference.
-    dfw: is a DataFrame containing feature weights (for 'weighted' voting_strictness) or None (for other voting methods). When available, it contains 
-            columns: 'Feature', 'Weight', and 'Relative Weight (%)' sorted by relative weight in descending order. 
+    dfw: is a DataFrame containing feature weights (for 'weighted' voting_strictness) or None (for other voting methods). 
+            For '2-stage-selection-with-union' and '2-stage-selection-with-weighted-voting', dfw is a list [dfw1, dfw2] 
+            where dfw1 contains feature weights from Stage 1 and dfw2 contains feature weights from Stage 2. 
+            When available, each DataFrame contains columns: 'Feature', 'Weight', and 'Relative Weight (%)' sorted by 
+            relative weight in descending order. 
     '''
     
     start_time = datetime.now()
@@ -407,12 +410,17 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     
     # 2-stage-selection variations
     dfw_stage_combined = None
+    dfw1 = None
+    dfw2 = None
     if vote in (104, 106):  # two-stage selections
         if verbose:
             print(f"\n============================== Stage 1 Complete =====================================\n")
             print(f"Running {voting_strictness} approach...\n")
         
         selectedFeatures_stage1 = copy.deepcopy(selectedFeatures)
+        
+        # Calculate dfw1 for Stage 1 features using weighted voting
+        _, dfw1 = apply_weighted_voting(selectedFeatures_stage1, verbose=False, descriptor=f"Stage 1 ({nFold} folds)")
         
         # Stage 1: Get union of all features from first stage
         X_stage1 = [item for sublist in selectedFeatures_stage1 for item in sublist]
@@ -443,6 +451,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         # Training stage 2 on filtered features with new seed
         selectedFeatures_stage2 = train(maxIter, nFold, feature_df_stage2, score_df, shuffle_flag, random_seed_stage2, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
         
+        # Calculate dfw2 for Stage 2 features using weighted voting
+        _, dfw2 = apply_weighted_voting(selectedFeatures_stage2, verbose=False, descriptor=f"Stage 2 ({nFold} folds)")
+        
         # Stage 2: Get union of all features from second stage
         X_stage2 = [item for sublist in selectedFeatures_stage2 for item in sublist]
         final_features_stage2 = list(set(X_stage2))  # Get unique features (union)
@@ -470,8 +481,9 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     
     # Initialize dfw to None (will be set for weighted voting)
     dfw = None
-    if vote == 106 and dfw_stage_combined is not None:
-        dfw = dfw_stage_combined
+    if vote in (104, 106):  # two-stage selections
+        # Return [dfw1, dfw2] for 2-stage methods
+        dfw = [dfw1, dfw2]
         
     if vote == round(0.6 * nFold) or vote == round(0.4 * nFold):
         X = [item for sublist in selectedFeatures for item in sublist]

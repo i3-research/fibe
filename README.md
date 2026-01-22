@@ -112,7 +112,7 @@ The function returns a tuple with the following elements (in order):
 
 5. **`validationPerformance`** (list): List containing validation performance in terms of chosen `metric` for `nFold` folds. Each element corresponds to the performance on one fold during cross-validation inference.
 
-6. **`dfw`** (DataFrame or None): DataFrame containing feature weights (for `'weighted'` voting_strictness) or None (for other voting methods). When available, it contains columns: `'Feature'`, `'Weight'`, and `'Relative Weight (%)'` sorted by relative weight in descending order.
+6. **`dfw`** (DataFrame, list, or None): DataFrame containing feature weights (for `'weighted'` voting_strictness) or None (for other voting methods). For `'2-stage-selection-with-union'` and `'2-stage-selection-with-weighted-voting'`, `dfw` is a list `[dfw1, dfw2]` where `dfw1` contains feature weights from Stage 1 and `dfw2` contains feature weights from Stage 2. When available, each DataFrame contains columns: `'Feature'`, `'Weight'`, and `'Relative Weight (%)'` sorted by relative weight in descending order.
 
 ## Algorithm Overview
 
