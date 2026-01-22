@@ -103,7 +103,7 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
     start_time = datetime.now()
     print("Code started running at:", start_time.strftime("%Y-%m-%d %H:%M:%S"))
     
-    def apply_weighted_voting(selected_features_lists, verbose=False, descriptor=None):
+    def apply_weighted_voting(selected_features_lists, verbose=False, descriptor=None, apply_threshold=True):
         if not selected_features_lists:
             return [], pd.DataFrame(columns=["Feature", "Weight", "Relative Weight (%)"])
 
@@ -133,21 +133,28 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         if verbose:
             print(f"Final feature set over {descriptor} with weighted ranks: {final_dict}\n")
 
-        threshold = max_length
-        final_dict_sorted = sorted(final_dict.items(), key=lambda x: x[1], reverse=True)
+        if apply_threshold:
+            # Threshold-based selection (original behavior)
+            threshold = max_length
+            final_dict_sorted = sorted(final_dict.items(), key=lambda x: x[1], reverse=True)
 
-        if verbose:
-            filtered_sorted = [(item[0], item[1]) for item in final_dict_sorted if item[1] >= threshold]
-            print(f"Features selected after thresholding the weighted features, threshold = {threshold} : {filtered_sorted}")
+            if verbose:
+                filtered_sorted = [(item[0], item[1]) for item in final_dict_sorted if item[1] >= threshold]
+                print(f"Features selected after thresholding the weighted features, threshold = {threshold} : {filtered_sorted}")
 
-        weighted_features = [item[0] for item in final_dict_sorted if item[1] >= threshold]
+            weighted_features = [item[0] for item in final_dict_sorted if item[1] >= threshold]
 
-        for feat in strict_voting_features:
-            if feat not in weighted_features:
-                weighted_features.append(feat)
+            for feat in strict_voting_features:
+                if feat not in weighted_features:
+                    weighted_features.append(feat)
 
-        if verbose:
-            print(f"Features selected that satisfied the threshold of {threshold} including features selected at least {strict_threshold} times: {weighted_features}\n")
+            if verbose:
+                print(f"Features selected that satisfied the threshold of {threshold} including features selected at least {strict_threshold} times: {weighted_features}\n")
+        else:
+            # Union-based: include all features (no threshold)
+            weighted_features = list(final_dict.keys())
+            if verbose:
+                print(f"Union mode: Including all features (no threshold applied): {weighted_features}\n")
 
         if weighted_features:
             filtered_data = {key: value for key, value in final_dict.items() if key in weighted_features}
@@ -419,8 +426,10 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         
         selectedFeatures_stage1 = copy.deepcopy(selectedFeatures)
         
-        # Calculate dfw1 for Stage 1 features using weighted voting
-        _, dfw1 = apply_weighted_voting(selectedFeatures_stage1, verbose=False, descriptor=f"Stage 1 ({nFold} folds)")
+        # Calculate dfw1 for Stage 1 features
+        # For union methods (vote 104): use apply_threshold=False
+        # For weighted-voting (vote 106): use apply_threshold=False (union-based for stage 1)
+        _, dfw1 = apply_weighted_voting(selectedFeatures_stage1, verbose=False, descriptor=f"Stage 1 ({nFold} folds)", apply_threshold=False)
         
         # Stage 1: Get union of all features from first stage
         X_stage1 = [item for sublist in selectedFeatures_stage1 for item in sublist]
@@ -451,8 +460,11 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
         # Training stage 2 on filtered features with new seed
         selectedFeatures_stage2 = train(maxIter, nFold, feature_df_stage2, score_df, shuffle_flag, random_seed_stage2, specialist_features, task_type, balance, model_name, model, metric, tolerance, maxFeatures, save_intermediate, output_dir, verbose)
         
-        # Calculate dfw2 for Stage 2 features using weighted voting
-        _, dfw2 = apply_weighted_voting(selectedFeatures_stage2, verbose=False, descriptor=f"Stage 2 ({nFold} folds)")
+        # Calculate dfw2 for Stage 2 features
+        # For union method (vote 104): use apply_threshold=False
+        # For weighted-voting (vote 106): use apply_threshold=True (threshold-based for stage 2)
+        apply_threshold_stage2 = (vote == 106)  # True for weighted-voting, False for union
+        _, dfw2 = apply_weighted_voting(selectedFeatures_stage2, verbose=False, descriptor=f"Stage 2 ({nFold} folds)", apply_threshold=apply_threshold_stage2)
         
         # Stage 2: Get union of all features from second stage
         X_stage2 = [item for sublist in selectedFeatures_stage2 for item in sublist]
@@ -502,12 +514,16 @@ def fibe(feature_df, score_df, data_cleaning=False, fixed_features=None, columns
             final_features = list(specialist_features.columns) + final_features
     
     elif vote == 103:  #union
+        # Save original selectedFeatures (list of lists) before converting
+        selectedFeatures_original = copy.deepcopy(selectedFeatures)
         X = [item for sublist in selectedFeatures for item in sublist]
         Features_counts = Counter(X)
-        selectedFeatures = sorted(Features_counts.items(), key=lambda x: x[1], reverse=True)   #Keeping the order of features based on their frequency
-        final_features = [item[0] for item in selectedFeatures]
+        selectedFeatures_sorted = sorted(Features_counts.items(), key=lambda x: x[1], reverse=True)   #Keeping the order of features based on their frequency
+        final_features = [item[0] for item in selectedFeatures_sorted]
         if verbose:
             print(f"Following features appeared in the union: {final_features}\n")
+        # Calculate weights for all features in union (no threshold)
+        _, dfw = apply_weighted_voting(selectedFeatures_original, verbose=verbose, descriptor=f"{nFold}-folds (union)", apply_threshold=False)
         subjectList, actual_score, predicted_score, validationPerformance = inference(final_features, nFold, feature_df, score_df, shuffle_flag, random_seed, specialist_features, balance, model_name, model, metric, task_type, probability)   # Added task_type
         if len(specialist_features) != 0:
             final_features = list(specialist_features.columns) + final_features
