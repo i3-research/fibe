@@ -23,7 +23,7 @@ import random
 import pandas as pd
 import numpy as np
 
-def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 = 0.4, thrs2 = 5, thrs3 = 0.8):
+def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 = 0.4, thrs2 = 10, thrs3 = 0.8):
 
   '''
   feature_df    :   Input pandas df that will be curated
@@ -206,12 +206,14 @@ def data_curation(feature_df, unknown_value = 'unknown', keyword = None, thrs1 =
       if missing_before > 0:
         if len(unique_cats) == 2:
           major_cat = feature_df[col].mode()[0]
+          imputed_count = feature_df[col].isnull().sum()
           feature_df[col] = feature_df[col].fillna(major_cat)
-          imputation_log.append([col, 'categorical-binary', major_cat])
+          imputation_log.append([col, 'categorical-binary', major_cat, imputed_count])
         else:
-          chosen_cat = random.choice(unique_cats)
+          chosen_cat = feature_df[col].mode()[0]
+          imputed_count = feature_df[col].isnull().sum()
           feature_df[col] = feature_df[col].fillna(chosen_cat)
-          imputation_log.append([col, 'categorical', chosen_cat])
+          imputation_log.append([col, 'categorical', chosen_cat, imputed_count])
 
   return feature_df, drop_log, mapping_list, imputation_log
 
@@ -230,7 +232,7 @@ def log_files_generator(drop_log, mapping_list, imputation_log, output_dir):
     mapping_list_df = pd.DataFrame(mapping_list, columns = ['Feature', 'Old', 'Mapped'])
     mapping_list_df.to_excel('mapping_list.xlsx', index = False)
 
-    imputation_log_df = pd.DataFrame(imputation_log, columns = ['Feature', 'Type', 'Imputation Value'])
+    imputation_log_df = pd.DataFrame(imputation_log, columns = ['Feature', 'Type', 'Imputation Value', 'Imputation Count'])
     imputation_log_df.to_excel('imputation_log.xlsx', index = False)
 
   else:
@@ -245,6 +247,6 @@ def log_files_generator(drop_log, mapping_list, imputation_log, output_dir):
     mapping_list_file_path = f"{output_dir}mapping_list.xlsx"
     mapping_list_df.to_excel(mapping_list_file_path, index = False)
 
-    imputation_log_df = pd.DataFrame(imputation_log, columns = ['Feature', 'Type', 'Imputation Value'])
+    imputation_log_df = pd.DataFrame(imputation_log, columns = ['Feature', 'Type', 'Imputation Value', 'Imputation Count'])
     imputation_log_file_path = f"{output_dir}imputation_log.xlsx"
     imputation_log_df.to_excel(imputation_log_file_path, index = False)
