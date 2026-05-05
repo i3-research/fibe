@@ -16,7 +16,7 @@ https://github.com/i3-research/fibe
 - **Classification**: Accuracy, F1-score, binaryROC
 
 ### Voting Strategies
-The algorithm provides seven voting strategies to select the final feature set from N outer fold selections:
+The algorithm provides eight voting strategies to select the final feature set from N outer fold selections:
 
 1. **'strict'**: Features selected at least 0.6 x N times across outer folds
 2. **'loose'**: Features selected at least 0.4 x N times across outer folds
@@ -25,7 +25,8 @@ The algorithm provides seven voting strategies to select the final feature set f
 5. **'conditional'**: First tries strict voting, then falls back to loose voting, and finally to union based on specific conditions
 6. **'2-stage-selection-with-union'**: First stage takes union of features from N outer folds, then reruns the entire FIBE process on these features with reshuffled data partitions (different random seed) to produce a second set of N feature selections, and finally takes union of the second stage features as the final selection
 7. **'2-stage-selection-with-weighted-voting'**: First stage takes union of features from N outer folds, reruns the FIBE process on these features with reshuffled data partitions, and then applies weighted majority voting across all feature sets from both stages (total 2 x N lists) to determine the final feature subset
-8. **'best-fold'**: Evaluates each outer fold's selected features on all other (N-1) outer folds using N inner folds cross-validation on each, computes mean performance (accuracy/error) for each fold, and selects the fold with best mean performance (highest for classification, lowest for regression) as the final feature set
+8. **'2-stage-selection-with-stage2-weighted-voting'**: First stage takes union of features from N outer folds, reruns the FIBE process on these features with reshuffled data partitions, and then applies weighted majority voting using only second-stage feature sets (N lists) to determine the final feature subset
+9. **'best-fold'**: Evaluates each outer fold's selected features on all other (N-1) outer folds using N inner folds cross-validation on each, computes mean performance (accuracy/error) for each fold, and selects the fold with best mean performance (highest for classification, lowest for regression) as the final feature set
 
 ## How to Run the Algorithm
 
@@ -85,7 +86,7 @@ final_features, subjectList, actualScore, predictedScore, validationPerformance,
   - For `'classification'` task: `'Accuracy'`, `'F1-score'`, or `'binaryROC'`. Default is `'Accuracy'`.
 
 #### Feature Selection Configuration
-- **`voting_strictness`** (str, default='weighted'): Choose from `'strict'`, `'loose'`, `'weighted'`, `'union'`, `'conditional'`, `'2-stage-selection-with-union'`, `'2-stage-selection-with-weighted-voting'`, or `'best-fold'`. See [Voting Strategies](#voting-strategies) section for details.
+- **`voting_strictness`** (str, default='weighted'): Choose from `'strict'`, `'loose'`, `'weighted'`, `'union'`, `'conditional'`, `'2-stage-selection-with-union'`, `'2-stage-selection-with-weighted-voting'`, `'2-stage-selection-with-stage2-weighted-voting'`, or `'best-fold'`. See [Voting Strategies](#voting-strategies) section for details.
 - **`nFold`** (int, default=5): Number of folds in cross-validation. Preferred and default is `5`.
 - **`maxIter`** (int, default=3): Maximum number of iterations that the algorithm goes back and forth in forward inclusion and backward elimination in each fold.
 - **`tolerance`** (float, default=0.05): Percentage of deviation in the error/accuracy threshold allowed. Default is `0.05` (5%).
@@ -112,7 +113,7 @@ The function returns a tuple with the following elements (in order):
 
 5. **`validationPerformance`** (list): List containing validation performance in terms of chosen `metric` for `nFold` folds. Each element corresponds to the performance on one fold during cross-validation inference.
 
-6. **`dfw`** (DataFrame, list, or None): DataFrame containing feature weights (for `'weighted'` voting_strictness) or None (for other voting methods). For `'2-stage-selection-with-union'` and `'2-stage-selection-with-weighted-voting'`, `dfw` is a list `[dfw1, dfw2]` where `dfw1` contains feature weights from Stage 1 and `dfw2` contains feature weights from Stage 2. When available, each DataFrame contains columns: `'Feature'`, `'Weight'`, and `'Relative Weight (%)'` sorted by relative weight in descending order.
+6. **`dfw`** (DataFrame, list, or None): DataFrame containing feature weights (for `'weighted'` voting_strictness) or None (for other voting methods). For `'2-stage-selection-with-union'`, `'2-stage-selection-with-weighted-voting'`, and `'2-stage-selection-with-stage2-weighted-voting'`, `dfw` is a list `[dfw1, dfw2]` where `dfw1` contains feature weights from Stage 1 and `dfw2` contains feature weights from Stage 2. When available, each DataFrame contains columns: `'Feature'`, `'Weight'`, and `'Relative Weight (%)'` sorted by relative weight in descending order.
 
 ## Algorithm Overview
 
